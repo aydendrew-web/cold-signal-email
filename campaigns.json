@@ -1,0 +1,86 @@
+{
+ "77c9f704-b081-47d2-87f4-5541673088a1": {
+  "template": "01-reviews",
+  "name": "SCE | 01-reviews | Speed to lead",
+  "playbook": "playbooks/01-reviews.md",
+  "mode": "draft"
+ },
+ "799a71e1-daf1-4633-bb3a-fc69ed960ec7": {
+  "template": "01-ads",
+  "name": "SCE | 01-ads | Speed to lead",
+  "playbook": "playbooks/01-ads.md",
+  "mode": "draft"
+ },
+ "d5a49d0b-06b0-4aba-b2a8-7f49c294554e": {
+  "template": "02-after-hours",
+  "name": "SCE | 02-after-hours | After-hours receptionist",
+  "playbook": "playbooks/02-after-hours.md",
+  "mode": "draft"
+ },
+ "9b654f92-36f2-46eb-af50-dd4ef48cfd31": {
+  "template": "03-reviews",
+  "name": "SCE | 03-reviews | Client updates during the build",
+  "playbook": "playbooks/03-reviews.md",
+  "mode": "draft"
+ },
+ "d15bc30c-f2bd-42a4-86a3-8e39684920e2": {
+  "template": "03-hiring",
+  "name": "SCE | 03-hiring | Client updates during the build",
+  "playbook": "playbooks/03-hiring.md",
+  "mode": "draft"
+ },
+ "3076df3c-b81f-4722-a584-0b7d36776c32": {
+  "template": "04-change-orders",
+  "name": "SCE | 04-change-orders | Selections and change orders",
+  "playbook": "playbooks/04-change-orders.md",
+  "mode": "draft"
+ },
+ "274280e7-a7aa-4b43-bbf1-e1e40cbf32d3": {
+  "template": "05-draws",
+  "name": "SCE | 05-draws | Draws and lien waivers",
+  "playbook": "playbooks/05-draws.md",
+  "mode": "draft"
+ },
+ "c7126619-d785-40d5-886c-44822df8b391": {
+  "template": "06-permits",
+  "name": "SCE | 06-permits | Permit tracker",
+  "playbook": "playbooks/06-permits.md",
+  "mode": "draft"
+ },
+ "55986307-353e-4344-a21e-1474ae2bded7": {
+  "template": "08-hiring",
+  "name": "SCE | 08-hiring | Invoice entry",
+  "playbook": "playbooks/08-hiring.md",
+  "mode": "draft"
+ },
+ "a250dfd9-14d2-45d8-bbee-6f2a0728c129": {
+  "template": "09-hiring",
+  "name": "SCE | 09-hiring | Invoicing and payment chase",
+  "playbook": "playbooks/09-hiring.md",
+  "mode": "draft"
+ },
+ "5def94f3-6f02-4180-917d-4d7786e9243f": {
+  "template": "10-social-video",
+  "name": "SCE | 10-social-video | Social posting from job-site photos",
+  "playbook": "playbooks/10-social-video.md",
+  "mode": "draft"
+ },
+ "2256c466-76d1-45fe-8fa7-fc7a65d495d5": {
+  "template": "11-review-slowdown",
+  "name": "SCE | 11-review-slowdown | Past-client follow-up and referrals",
+  "playbook": "playbooks/11-review-slowdown.md",
+  "mode": "draft"
+ },
+ "48fb6b23-2617-4e68-beac-f3d755672c59": {
+  "template": "13-seller-leads",
+  "name": "SCE | 13-seller-leads | Distressed-seller finder agent",
+  "playbook": "playbooks/13-seller-leads.md",
+  "mode": "draft"
+ },
+ "8a3aa7b5-e12c-4c20-a092-894b70886135": {
+  "template": "16-reporting",
+  "name": "SCE | 16-reporting | Reporting-hiring (Monday numbers)",
+  "playbook": "playbooks/16-reporting.md",
+  "mode": "draft"
+ }
+}
