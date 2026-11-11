@@ -1,51 +1,63 @@
-# Signal cold email: runbook (written 2026-11-10)
+# Signal cold email: runbook (updated 2026-11-11)
 
 Everything runs in the cloud. No laptop needs to be on, and any computer with your logins can operate it.
+The skill (SKILL.md), scripts, templates, playbooks and this runbook all live in ONE place: this GitHub repo.
+
+## One source of truth
+- Repo: https://github.com/aydendrew-web/cold-signal-email (public, no secrets in it).
+- Branch `main` is where you work. The tag `stable` is the version the routine and the reply agent actually use.
+- Edit only in the repo. Do not edit copies in Drive, in the Graphed project, or in the routine prompt.
+- On any computer: `git clone https://github.com/aydendrew-web/cold-signal-email.git ~/Desktop/signal-lead-scripts`, then
+  `ln -s ~/Desktop/signal-lead-scripts ~/.claude/skills/signal-cold-email` so Claude Code finds the skill. Update with `git pull`.
+
+## Change something (the only workflow)
+1. Edit in the repo, test locally (`python3 finder.py <service> --target 2` costs a few cents).
+2. `git add -A && git commit -m "..." && git push origin main`.
+3. When it is tested and you want the cloud to use it: `git tag -f stable && git push -f origin stable`.
+4. If you changed an email template: `python3 gen_playbooks.py playbooks`, commit, move `stable`, then
+   `INSTANTLY_API_KEY=... python3 sync_campaigns.py --apply` (campaign text) and, in the Graphed project,
+   `graphed exec -- npx tsx scripts/setup-campaigns.ts` (reply playbooks). `sync_campaigns.py --check` shows drift without changing anything.
+Roll back: `git tag -f stable <older commit> && git push -f origin stable`.
 
 ## What runs where
-| Piece | Where it lives | Open it from any computer |
+| Piece | Where | Open it |
 |---|---|---|
-| Daily lead + email job ("Signal cold email daily (9am Pacific)") | Claude cloud routine | https://claude.ai/code/routines/trig_018wPfVhxbPxPZZXt7oMoqKR |
+| Daily job "Signal cold email daily (9am Pacific)" | Claude cloud routine | https://claude.ai/code/routines/trig_018wPfVhxbPxPZZXt7oMoqKR |
 | Its secrets (INSTANTLY_API_KEY, TREG_TOKEN) | "Ai Agency" cloud environment | claude.ai/code, cloud icon above the message box, Ai Agency, edit |
-| Its scripts and brief | Google Drive: Cold Email Signal Email / scripts (2026-11-09) | The 7 files must stay shared "anyone with the link" (the routine downloads them) |
-| Its daily log | Google Drive: Cold Email Signal Email / daily logs | One file per day: leads, spend, every email, problems |
-| Alerts | Gmail to the alert address set in the routine prompt, subject starts "[Signal cold email]", plus a phone push | |
+| Its code and instructions | The `stable` tag of this repo | Downloaded fresh every run |
+| Daily logs | Google Drive: Cold Email Signal Email / daily logs | One file per day |
+| Alerts | Gmail, subject starts "[Signal cold email]", plus a phone push | Address is set in the routine prompt |
 | 14 ongoing campaigns "SCE | <template> | <service>" | Instantly | app.instantly.ai |
-| Reply agent (checks Instantly every 10 min, answers replies) | Graphed cloud, project "signal-reply-agent", account "AJ's Account" | Graphed web app, project signal-reply-agent, /outbound page |
-| Senders | hector@, jared@, ayden@apph2iautomation.com (Google, warming) | |
+| Reply agent (checks Instantly every 10 min) | Graphed cloud, project signal-reply-agent | Graphed app, /outbound |
+| Senders | hector@, jared@, ayden@apph2iautomation.com | |
 
 ## Current state
-- Routine: DISABLED and set to DRY_RUN (finds leads, writes emails to the log, adds nothing to Instantly).
-- Graphed reply agent: running every 10 minutes. All 14 campaigns are in Draft mode (replies saved, nothing sent). Test campaign is Off.
-- Instantly campaigns: drafts with no leads.
+- Routine: DISABLED, prompt line 1 says DRY_RUN (finds leads, writes emails to the log, adds nothing to Instantly).
+- Graphed reply agent: running; all campaigns in Draft (replies saved, nothing sent).
+- Campaigns: drafts with no leads.
 
-## Go live (do in this order)
-1. Read the latest file in "daily logs". Check the leads, the signals and the rendered emails. Fix anything odd.
-2. Open the routine, edit the prompt: change the first word on line 1 from DRY_RUN to LIVE. Turn the routine ON. It then runs daily at 9am Pacific (17:00 UTC).
-3. Switch the reply agent to auto-reply: Graphed web app, /outbound, open each SCE campaign, Configure auto-response, Auto-send. (Or from a terminal with the Graphed CLI: `graphed exec -- npx tsx scripts/setup-campaigns.ts send` inside the signal-reply-agent project.)
-4. Watch the first three mornings' logs and your alert email.
+## Go live (in order)
+1. Run the routine once (Run now) and read the day's file in "daily logs". Check the leads and emails.
+2. Edit the routine prompt: change DRY_RUN to LIVE on line 1, switch the routine ON. It then runs at 9am Pacific (17:00 UTC).
+3. Switch replies to Auto-send: Graphed /outbound, each SCE campaign, Configure auto-response. Or
+   `graphed exec -- npx tsx scripts/setup-campaigns.ts send` in the signal-reply-agent project.
+4. Watch the first three mornings and your alert email.
 
 ## Pause or stop
-- Stop new leads: turn the routine OFF at claude.ai/code/routines.
-- Stop all sending: in Instantly, pause the SCE campaigns.
-- Stop replies: Graphed /outbound, set campaigns to Off.
+- New leads: turn the routine OFF. Sending: pause the SCE campaigns in Instantly. Replies: set campaigns to Off in Graphed.
 
-## Limits that protect you
-- Daily cap: 45 new leads (15 per inbox). Change the number 45 in the routine prompt.
-- Treg: auto top-up is on ($20 when under $5, cap $2,000/month). Lower the cap in treg before running unattended.
-- The routine alerts and stops itself if treg spend passes $3 a day, bounces pass 5%, or any setup check fails.
-- Instantly plan: about 990 lead uploads remained on 2026-11-10 (about 22 days at 45 a day).
+## Protections
+- Daily cap 45 leads. Treg calls capped at $0.05 each. The routine alerts and stops itself if a run spends over $3,
+  bounces pass 5%, or a setup check fails. Only approved templates are added in LIVE mode (`services.approved_templates()`).
+- Treg auto top-up is on ($20 under $5, up to $2,000 a month): lower it before running unattended.
+- Instantly plan had about 990 lead uploads left on 2026-11-10.
 
-## Things to do on a schedule
-- Around 2027-03-08 (daylight saving starts): change the routine's cron from `0 17 * * *` to `0 16 * * *` to stay at 9am Pacific.
-- Rotate the Instantly API key (it was pasted in chat on 2026-11-09). Update it in three places: the Ai Agency environment, `graphed secrets set INSTANTLY_API_KEY`, and nowhere else.
-- TREG_TOKEN is the full treg account token. If you swap it for a capped agent token (`treg org agent-new <name> --cap 1500`), update only the Ai Agency environment.
-- If you edit any script in Drive, the routine's checksum check will fail on purpose. Update the checksums listed in the routine prompt (setup step 1) to match, or it will alert and stop.
+## Chores
+- About 2027-03-08 (daylight saving): change the routine's cron from `0 17 * * *` to `0 16 * * *`.
+- Rotate the Instantly API key (it was pasted in chat on 2026-11-09). Update it in the Ai Agency environment and with
+  `graphed secrets set INSTANTLY_API_KEY`. TREG_TOKEN is the full treg account token; swapping it for a capped agent token
+  (`treg org agent-new <name> --cap 1500`) is safer.
 
 ## Off for now
-Services 07 (manual only), 12, 14, 15 (no video). 10-social-video has new wording you have not approved: the routine skips adding leads to it in LIVE mode.
-
-## Known issues
-- The first test cold email from ayden@ never arrived once (not reproduced; later sends from all three inboxes landed).
-- Instantly can take seconds to minutes to start sending after a campaign is activated.
-- The GitHub repo aydendrew-web/cold-signal-email holds a backup copy of the scripts. The routine does not use it (Claude could not read the private repo).
+Services 07 (manual only), 12, 14, 15 (no video). Templates flagged `new_wording` (10-social-video, 02-voicemail) are never added to
+live campaigns until Ayden approves the wording.
