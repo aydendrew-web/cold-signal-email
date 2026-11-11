@@ -68,6 +68,12 @@ TEMPLATES = {
              "When a no-heat or leak call hits voicemail at 10pm, that job is usually booked with someone else by 10:05.\n\n"
              "I built an agent that answers every after-hours call in your name, books the routine ones and gets emergencies to your on-call "
              "tech in minutes. " + ASK),
+    "02-voicemail": dict(service="02", fields=["reviewSource", "reviewQuote"], new_wording=True,
+        subject="{{companyName}} reviews",
+        body='Hi {{firstName}},\n\nA recent {{reviewSource}} review for {{companyName}} says "{{reviewQuote}}." '
+             "When a call hits voicemail at 10pm, that job is usually booked with someone else by 10:05.\n\n"
+             "I built an agent that answers every after-hours call in your name, books the routine ones and gets emergencies to your on-call "
+             "tech in minutes. " + ASK),
     "03-reviews": dict(service="03", fields=["reviewSource", "reviewQuote"],
         subject="{{companyName}} reviews",
         body='Hi {{firstName}},\n\nA recent {{reviewSource}} review for {{companyName}} says "{{reviewQuote}}." '
@@ -132,3 +138,8 @@ def training_link(service):
 
 def active_templates():
     return [tid for tid, t in TEMPLATES.items() if SERVICES[t["service"]].get("active")]
+
+
+def approved_templates():
+    """Templates Ayden has approved (the live routine only adds leads to these). new_wording=True means not yet approved."""
+    return [tid for tid in active_templates() if not TEMPLATES[tid].get("new_wording")]

@@ -53,6 +53,27 @@ def call(endpoint, data=None, max_cost=MAX_CALL_COST, headers=None, note="", tim
     return {"_error": "unknown"}
 
 
+def call_get(endpoint, params=None, max_cost=MAX_CALL_COST, note="", timeout=120):
+    """GET-style treg call (some endpoints, e.g. Yelp search and Meta ad search, take query parameters)."""
+    max_cost = min(max_cost, MAX_CALL_COST)
+    cmd = ["treg", "call", endpoint, "--header", f"X-Treg-Route-Max-Cost: {max_cost}"]
+    for k, v in (params or {}).items():
+        cmd += ["--query", f"{k}={v}"]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _log(endpoint, 0.0, "timeout " + (note or ""))
+        return {"_error": "timeout"}
+    m = re.search(r"charged \$([0-9.]+)", p.stderr)
+    _log(endpoint, float(m.group(1)) if m else 0.0, note or json.dumps(params or {}))
+    if p.returncode != 0:
+        return {"_error": (p.stderr or p.stdout)[:300]}
+    try:
+        return json.loads(p.stdout)
+    except Exception:
+        return {"_error": "non-json: " + p.stdout[:200]}
+
+
 def spend(service=None):
     """Total logged spend, optionally for one service."""
     if not os.path.exists(COSTS):

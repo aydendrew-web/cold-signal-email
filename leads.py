@@ -175,12 +175,16 @@ def looks_like_person(name):
     return 2 <= len(parts) <= 4 and all(re.fullmatch(r"[A-Za-z'\-]+", p) for p in parts) and not CORP_WORDS.search(name)
 
 
+BAD_TITLE = re.compile(r"agency|franchise|division|regional|branch|district|dealer|territory|insurance|assistant|sales (rep|consultant|associate)|"
+                       r"manager of|vice|\bvp\b", re.I)
+
+
 def pick_exec(people):
     best = None
     for p in people:
         t = (p.get("title") or p.get("headline") or "").lower()
         name = p.get("full_name") or p.get("name") or ""
-        if not looks_like_person(name) or "vice" in t or re.search(r"\bvp\b", t) or "assistant" in t:
+        if not looks_like_person(name) or BAD_TITLE.search(t):
             continue
         for key, rank in PRIORITY:
             if key in t:
