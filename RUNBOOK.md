@@ -5,15 +5,15 @@ The skill (SKILL.md), scripts, templates, playbooks and this runbook all live in
 
 ## One source of truth
 - Repo: https://github.com/aydendrew-web/cold-signal-email (public, no secrets in it).
-- Branch `main` is where you work. The tag `stable` is the version the routine and the reply agent actually use.
+- The daily routine clones branch `main`, so `main` is the live version: work on a `dev` branch and merge to `main` only when tested. The tag `stable` is only what the Graphed reply agent downloads (playbooks, campaigns.json).
 - Edit only in the repo. Do not edit copies in Drive, in the Graphed project, or in the routine prompt.
 - On any computer: `git clone https://github.com/aydendrew-web/cold-signal-email.git ~/Desktop/signal-lead-scripts`, then
   `ln -s ~/Desktop/signal-lead-scripts ~/.claude/skills/signal-cold-email` so Claude Code finds the skill. Update with `git pull`.
 
 ## Change something (the only workflow)
-1. Edit in the repo, test locally (`python3 finder.py <service> --target 2` costs a few cents).
-2. `git add -A && git commit -m "..." && git push origin main`.
-3. When it is tested and you want the cloud to use it: `git tag -f stable && git push -f origin stable`.
+1. Edit on a `dev` branch, test locally (`python3 finder.py <service> --target 2` costs a few cents).
+2. `git add -A && git commit -m "..." && git push origin dev`.
+3. When tested and you want the cloud to use it: merge `dev` into `main` and push. If playbooks or campaigns.json changed, also `git tag -f stable && git push -f origin stable`.
 4. If you changed an email template: `python3 gen_playbooks.py playbooks`, commit, move `stable`, then
    `INSTANTLY_API_KEY=... python3 sync_campaigns.py --apply` (campaign text) and, in the Graphed project,
    `graphed exec -- npx tsx scripts/setup-campaigns.ts` (reply playbooks). `sync_campaigns.py --check` shows drift without changing anything.
@@ -24,7 +24,7 @@ Roll back: `git tag -f stable <older commit> && git push -f origin stable`.
 |---|---|---|
 | Daily job "Signal cold email daily (9am Pacific)" | Claude cloud routine | https://claude.ai/code/routines/trig_018wPfVhxbPxPZZXt7oMoqKR |
 | Its secrets (INSTANTLY_API_KEY, TREG_TOKEN) | "Ai Agency" cloud environment | claude.ai/code, cloud icon above the message box, Ai Agency, edit |
-| Its code and instructions | The `stable` tag of this repo | Downloaded fresh every run |
+| Its code and instructions | Branch `main` of this repo | Cloned fresh every run |
 | Daily logs | Google Drive: Cold Email Signal Email / daily logs | One file per day |
 | Alerts | Gmail, subject starts "[Signal cold email]", plus a phone push | Address is set in the routine prompt |
 | 14 ongoing campaigns "SCE | <template> | <service>" | Instantly | app.instantly.ai |
