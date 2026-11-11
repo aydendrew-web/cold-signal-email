@@ -176,7 +176,7 @@ def looks_like_person(name):
 
 
 BAD_TITLE = re.compile(r"agency|franchise|division|regional|branch|district|dealer|territory|insurance|assistant|sales (rep|consultant|associate)|"
-                       r"manager of|vice|\bvp\b", re.I)
+                       r"manager of|vice|\bvp\b|publisher|editor|journalist|advertis|columnist", re.I)
 
 
 def pick_exec(people):

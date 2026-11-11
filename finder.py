@@ -23,28 +23,34 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15):
         return {"leads": [], "dropped": [{"reason": "discovery error " + repr(e)[:120]}], "spend_usd": tr.spend(service) - s0}
     s_disc = tr.spend(service) - s0
     out, dropped, seen = [], [], set()
+    queue = []
     for c in sorted(cands, key=lambda c: -c.get("score", 0)):
-        if len(out) >= target:
-            break
+        if c["domain"] not in seen:
+            seen.add(c["domain"])
+            queue.append(c)
+    i = 0
+    while i < len(queue) and len(out) < target:
         if tr.spend(service) - s0 - s_disc > contact_cap:
             dropped.append({"reason": f"contact budget ${contact_cap} used up"})
             break
-        if c["domain"] in seen:
-            continue
-        seen.add(c["domain"])
-        r = contact.contact(c["domain"], owner_name=c.get("owner_name"))
-        if not r.get("verified"):
-            dropped.append({"company": c["company"], "domain": c["domain"], "reason": r.get("reason")})
-            continue
-        lead = {"service": service, "template": c["template"], "company": c["company"], "domain": c["domain"], "city": c.get("city"),
-                "first_name": r["first"], "last_name": r["last"], "title": r["title"], "email": r["email"], "verdict": "valid",
-                "email_source": r["email_source"], "name_source": r["name_source"], "signal_plain": c["signal_plain"],
-                "evidence_urls": c.get("evidence_urls", []), "fields": c["fields"]}
-        _, _, issues = render_emails.render(dict(template=c["template"], first_name=r["first"], company_name=c["company"], **c["fields"]))
-        if issues:
-            dropped.append({"company": c["company"], "domain": c["domain"], "reason": "lint: " + "; ".join(issues)})
-            continue
-        out.append(lead)
+        batch = queue[i:i + 3]          # three companies at a time (treg calls are slow, not expensive)
+        i += 3
+        results = discover.pmap(lambda c: contact.contact(c["domain"], owner_name=c.get("owner_name")), batch, workers=3)
+        for c, r in zip(batch, results):
+            if len(out) >= target:
+                break
+            if not r.get("verified"):
+                dropped.append({"company": c["company"], "domain": c["domain"], "reason": r.get("reason")})
+                continue
+            lead = {"service": service, "template": c["template"], "company": c["company"], "domain": c["domain"], "city": c.get("city"),
+                    "first_name": r["first"], "last_name": r["last"], "title": r["title"], "email": r["email"], "verdict": "valid",
+                    "email_source": r["email_source"], "name_source": r["name_source"], "signal_plain": c["signal_plain"],
+                    "evidence_urls": c.get("evidence_urls", []), "fields": c["fields"]}
+            _, _, issues = render_emails.render(dict(template=c["template"], first_name=r["first"], company_name=c["company"], **c["fields"]))
+            if issues:
+                dropped.append({"company": c["company"], "domain": c["domain"], "reason": "lint: " + "; ".join(issues)})
+                continue
+            out.append(lead)
     spent = tr.spend(service) - s0
     for l in out:
         l["spend_usd"] = round(spent / max(len(out), 1), 4)

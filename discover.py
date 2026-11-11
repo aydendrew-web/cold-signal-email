@@ -17,7 +17,9 @@ CITIES = ["Austin TX", "Dallas TX", "Houston TX", "San Antonio TX", "Phoenix AZ"
           "Charlotte NC", "Raleigh NC", "Tampa FL", "Orlando FL", "Salt Lake City UT", "Boise ID", "Indianapolis IN",
           "Columbus OH", "Kansas City MO", "Minneapolis MN", "Jacksonville FL", "Las Vegas NV"]
 BIG = re.compile(r"milestone|century|brookfield|perry homes|taylor morrison|kb home|horton|weekley|pulte|lennar|meritage|"
-                 r"newhomeco|new home co|highland|toll bro|ashton|beazer|shea homes|mi homes|ryan homes|nvr|fischer homes", re.I)
+                 r"newhomeco|new home co|highland|toll bro|ashton|beazer|shea homes|mi homes|ryan homes|nvr|fischer homes|"
+                 r"tri ?pointe|drees|lgi homes|stanley martin|landsea|dream finders|clayton homes|chesmar|empire communities|"
+                 r"davidson homes|smith douglas|century communities|forestar|hovnanian|m/i homes|william lyon|woodside", re.I)
 
 
 def pmap(fn, items, workers=4):
@@ -298,6 +300,9 @@ def ad_candidates(exclude=(), limit=15):
                         break
                 if not dom or dom in exclude:
                     continue
+                site = contact.page_text(contact.fetch(f"https://{dom}/"))
+                if not re.search(r"buy (your |any )?(house|home)|we buy|cash offer|sell (your|my) (house|home)|as-is", site, re.I):
+                    continue  # the page name matched a company that is not a house buyer (e.g. a medical firm)
                 desc = "ads offering to buy houses as-is for cash" if not re.search(r"guarantee", body, re.I) else "ads offering a guaranteed cash offer on houses"
                 out.append(dict(service="13", template="13-seller-leads", company=page, domain=dom, city=f"{city}, {st}",
                                 signal_plain=f"Active Meta ad ({kw}) in {city}", evidence_urls=[snap.get("page_profile_uri") or ""],
