@@ -1,0 +1,8 @@
+{
+  "min_delivered_for_verdict": 100,
+  "bounce_rate": {"green_below": 0.02, "red_above": 0.05},
+  "reply_rate": {"green_above": 0.02, "red_below": 0.005},
+  "positive_reply_rate": {"green_above": 0.005},
+  "unsubscribe_rate": {"red_above": 0.01},
+  "usd_per_lead": {"green_below": 0.25, "red_above": 0.6}
+}
