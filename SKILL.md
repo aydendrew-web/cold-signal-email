@@ -222,7 +222,7 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 4. Merge, drop duplicates, drop leads without a "valid" verdict, render and check every email (`render_emails.render`). Keep at most
    `remaining`, at least one per service that found one, hot leads first.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.
-   LIVE: add leads to the template's campaign (`instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
+   LIVE: write the final leads to /tmp/out/final_leads.json and run `python3 add_leads_to_instantly.py --leads /tmp/out/final_leads.json --run-date <today>` from the repo folder (it enforces approved templates and the cap, adds, activates, never retries). It uses `instantly.add_leads(...)`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
    that received leads, only for templates in `services.approved_templates()`. Log leads for unapproved templates instead. Never retry a send.
 6. Check that each campaign's email text still matches `services.build()` (`python sync_campaigns.py --check`) and alert on drift.
 7. Write the log file to Drive. End it with a fenced ```json block named FUNNEL: one `finder.funnel_row(service, result, today)` per service (the weekly analysis reads it). Include: mode, cap, spend per service, every lead, every rendered email, dropped leads and why, problems.
