@@ -76,6 +76,18 @@ def add_leads(campaign_id, leads):
     })
 
 
+def lead_payload(lead, run_date):
+    """Instantly lead dict for a finder lead. custom_variables = the email's merge fields plus analysis tags
+    (svc, template, signal, city, contactTitle, verdict, emailSource, headcount, runDate) so campaigns can be sliced later."""
+    tags = {"svc": lead.get("service"), "template": lead.get("template"), "signal": (lead.get("signal_plain") or "")[:200],
+            "city": lead.get("city"), "contactTitle": lead.get("title"), "verdict": lead.get("verdict"),
+            "emailSource": lead.get("email_source"), "headcount": lead.get("headcount"), "runDate": run_date,
+            "leadCostUsd": lead.get("spend_usd")}
+    cv = {k: v for k, v in {**(lead.get("fields") or {}), **tags}.items() if v not in (None, "")}
+    return {"email": lead["email"], "first_name": lead.get("first_name"), "last_name": lead.get("last_name"),
+            "company_name": lead.get("company"), "website": lead.get("domain"), "custom_variables": cv}
+
+
 def activate(campaign_id):
     return api("POST", f"/campaigns/{campaign_id}/activate", {})
 

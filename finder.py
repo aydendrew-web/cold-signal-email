@@ -58,6 +58,18 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15):
             "discovery_usd": round(s_disc, 4), "seconds": round(time.time() - t0)}
 
 
+def funnel_row(service, res, run_date):
+    """One line per service per day for the weekly analysis: candidates -> verified leads, drop reasons, spend."""
+    reasons = {}
+    for d in res.get("dropped", []):
+        k = (d.get("reason") or "unknown").split(":")[0][:40]
+        reasons[k] = reasons.get(k, 0) + 1
+    kept = len(res.get("leads", []))
+    return {"date": run_date, "service": service, "candidates": res.get("candidates", 0), "verified_kept": kept,
+            "dropped": len(res.get("dropped", [])), "drop_reasons": reasons, "spend_usd": res.get("spend_usd", 0),
+            "usd_per_lead": round(res.get("spend_usd", 0) / kept, 4) if kept else None}
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("service")
