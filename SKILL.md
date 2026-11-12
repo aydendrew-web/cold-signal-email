@@ -54,7 +54,7 @@ so launch one agent per active service at the same time.
 **Main run, before the agents:** list the active services, build the exclusion list (every domain already in any campaign), and
 launch one agent per service in a single step.
 
-**Each service agent:** runs `python finder.py <service> --target 4 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json`.
+**Each service agent:** runs `python finder.py <service> --target 4 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json --max-minutes 15` (or all services at once through `run_finders.py`, which runs them in waves of 4).
 That does steps 1 to 4 for its service only. It writes no emails and touches no Instantly or Gmail account. If it finds fewer than the
 target it may keep searching by hand within its budget, following `lead_agent_brief.md`. It returns a short summary and its spend.
 
@@ -217,8 +217,8 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 
 **Run.**
 1. Daily cap: 45 new leads. remaining = 45 minus emails sent today (`instantly.sent_since`). Stop if 0.
-2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains in earlier daily logs.
-3. Section 2a: one agent per active service, in parallel. Lead target 4 each.
+2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains of leads in earlier daily logs that were actually added to Instantly (LIVE runs). Leads from DRY_RUN logs, or from runs where the add was blocked, were never emailed and are NOT excluded. Write the list to /tmp/exclude.json as a JSON list of domains.
+3. Section 2a: run `python run_finders.py --exclude /tmp/exclude.json --out /tmp/out` (one finder per active service, in waves of 4 so treg is not overloaded; each has a 15 minute hard limit and always writes /tmp/out/svc_<id>.json, partial if it ran out of time). Lead target 4 each. The daily cap stays 45 in total across all services. If a service returns fewer than 4 after its limit, that is fine: log why, never pad.
 4. Merge, drop duplicates, drop leads without a "valid" verdict, render and check every email (`render_emails.render`). Keep at most
    `remaining`, at least one per service that found one, hot leads first.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.

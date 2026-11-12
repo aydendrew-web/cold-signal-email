@@ -246,7 +246,7 @@ def years_in_business(domain):
     return int(m.group(1)) if m else None
 
 
-def winback_candidates(exclude=(), limit=12, max_places=80):
+def winback_candidates(exclude=(), limit=12, max_places=150):
     trades = ["roofing contractor", "HVAC company", "remodeling contractor", "landscaping company", "plumbing company", "home builder"]
     qs = [f"{t} in {c}" for c in cities(6) for t in trades]
     places, seen = [], set()
@@ -279,8 +279,8 @@ def winback_candidates(exclude=(), limit=12, max_places=80):
 # ---------------------------------------------------------------------------- Meta ads (13)
 def ad_candidates(exclude=(), limit=15):
     out, seen = [], set()
-    for kw in ["we buy houses", "sell your house fast cash", "cash offer for your house as-is"]:
-        for c in cities(3, offset=3):
+    for kw in ["we buy houses", "sell your house fast cash", "cash offer for your house as-is", "sell my house as-is"]:
+        for c in cities(5, offset=3):
             city, st = c.rsplit(" ", 1)
             r = tr.call_get("scrapecreators.x.v1-facebook-adlibrary-search-ads", {"query": f"{kw} {city}", "country": "US", "status": "ACTIVE"}, max_cost=0.01)
             for ad in (r.get("searchResults") or [])[:30]:
@@ -316,15 +316,15 @@ def ad_candidates(exclude=(), limit=15):
 def discover(service, exclude=(), limit=15):
     ex = set(exclude)
     if service == "01":
-        qs = [f"{t} in {c}" for c in cities(6) for t in ("remodeling contractor", "home builder", "general contractor", "roofing contractor")]
+        qs = [f"{t} in {c}" for c in cities(10) for t in ("remodeling contractor", "home builder", "general contractor", "roofing contractor", "plumbing contractor", "HVAC contractor")]
         return review_candidates("01", "01-reviews", qs,
                                  r"never (called|got a call|heard|returned)|no (response|call ?back)|didn.t (return|call back|respond)|hard to reach|couldn.t get a hold|never got (a )?(quote|estimate)|stopped (responding|answering)|ignored (my|our) (calls|emails|messages)",
-                                 theme="a call that never got returned", exclude=ex, limit=limit, max_places=70)
+                                 theme="a call that never got returned", exclude=ex, limit=limit, max_places=120)
     if service == "02":
-        qs = [f"{t} in {c}" for c in cities(6, 1) for t in ("emergency plumber", "HVAC repair", "emergency electrician", "garage door repair")]
+        qs = [f"{t} in {c}" for c in cities(10, 1) for t in ("emergency plumber", "HVAC repair", "emergency electrician", "garage door repair", "water damage restoration")]
         cands = review_candidates("02", "02-voicemail", qs,
                                   r"voicemail|no one answered|nobody answered|never answered|after hours|on a weekend|didn.t answer|couldn.t reach (anyone|them)|no answer",
-                                  exclude=ex, limit=limit, max_places=70)
+                                  exclude=ex, limit=limit, max_places=120)
         for c in cands:  # upgrade to the approved template when the site really claims 24/7
             claim = site_claims_24_7(c["domain"])
             if claim:
@@ -333,19 +333,19 @@ def discover(service, exclude=(), limit=15):
                 c["score"] += 3
         return sorted(cands, key=lambda c: -c["score"])
     if service == "03":
-        qs = [f"{t} in {c}" for c in cities(6, 2) for t in ("custom home builder", "home builder", "home remodeling contractor")]
+        qs = [f"{t} in {c}" for c in cities(10, 2) for t in ("custom home builder", "home builder", "home remodeling contractor")]
         a = jobs_candidates("03", "03-hiring", ["warranty coordinator custom home builder", "customer care coordinator home builder",
                                                 "client experience coordinator builder", "homeowner liaison home builder"],
                             need=r"home|build|construct|warrant|homeowner", exclude=ex, limit=limit, need_company=r"home|build|construct|remodel|develop",
                             need_title=r"warrant|customer care|client (care|experience|relations)|homeowner|post.?closing|customer experience|service coordinator")
         b = review_candidates("03", "03-reviews", qs, r"no updates?|never knew what|had to (keep )?(call|chase)|lack of communication|poor communication|ghosted|stopped communicating|no communication",
-                              exclude=ex, limit=limit, max_places=60)
+                              exclude=ex, limit=limit, max_places=100)
         return a + b
     if service == "04":
-        qs = [f"{t} in {c}" for c in cities(8, 3) for t in ("custom home builder", "kitchen remodeling contractor", "home remodeling contractor", "bathroom remodeling contractor")]
+        qs = [f"{t} in {c}" for c in cities(10, 3) for t in ("custom home builder", "kitchen remodeling contractor", "home remodeling contractor", "bathroom remodeling contractor")]
         return review_candidates("04", "04-change-orders", qs,
                                  r"change orders?|wrong (tile|finish|fixture|cabinets?|paint)|not what we (picked|chose|selected|ordered)|charged (us )?(extra|more)|had to (redo|replace|fix)|extra charges?",
-                                 theme="change orders and extra charges", exclude=ex, limit=limit, max_places=100)
+                                 theme="change orders and extra charges", exclude=ex, limit=limit, max_places=140)
     if service == "05":
         return permit_candidates("05", "05-draws", new_only=True, exclude=ex, limit=limit)
     if service == "06":
