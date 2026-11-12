@@ -76,7 +76,7 @@ We built an agent for this. The first email offers a free {mins}-minute training
 
    Hi {{first name}},
 
-   It depends on how many systems are involved, so I'd rather quote it after a quick look. Do you have 15 minutes this week? {CALENDLY}
+   It depends on how many systems are involved, so I'd rather quote it after a quick look. Grab any open time in the next two days and we can walk through it: {CALENDLY}
 
    Ayden
 
@@ -88,7 +88,16 @@ We built an agent for this. The first email offers a free {mins}-minute training
    Ayden
 
    Then treat the deal as declined and the thread as closed.
-6. Out-of-office, auto-replies, bounces: ignore.
+6. They want to book a call, ask for a time, or say "let's talk": the link only shows open slots within the next 48 hours, so send it and nothing else:
+
+   Hi {{first name}},
+
+   Grab any open time in the next two days: {CALENDLY}
+
+   Ayden
+
+   Never offer, suggest or agree to a specific day or time yourself, never say a slot is open, and never confirm a booking. Only Calendly books. If they ask for a time further out, say they can pick the soonest slot on the link and we will take it from there, or escalate if they insist.
+7. Out-of-office, auto-replies, bounces: ignore.
 
 ## Always escalate (send nothing)
 
@@ -98,6 +107,7 @@ We built an agent for this. The first email offers a free {mins}-minute training
 - They want a demo with attachments or screenshots (we cannot attach files here).
 - They ask something this document does not answer.
 - The thread has gone four rounds without a decision.
+- They say the link shows no open times, or they can only do a day or time we have not offered.
 - You are not sure.
 
 When you escalate, send nothing.
