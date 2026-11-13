@@ -295,7 +295,7 @@ def years_in_business(domain):
     return int(m.group(1)) if m else None
 
 
-def winback_candidates(exclude=(), limit=12, max_places=80):
+def winback_candidates(exclude=(), limit=12, max_places=150):
     trades = ["roofing contractor", "HVAC company", "remodeling contractor", "landscaping company", "plumbing company", "home builder"]
     qs = [f"{t} in {c}" for c in cities(6) for t in trades]
     places, seen = [], set()
@@ -328,8 +328,8 @@ def winback_candidates(exclude=(), limit=12, max_places=80):
 # ---------------------------------------------------------------------------- Meta ads (13)
 def ad_candidates(exclude=(), limit=15):
     out, seen = [], set()
-    for kw in ["we buy houses", "sell your house fast cash", "cash offer for your house as-is"]:
-        for c in cities(3, offset=3):
+    for kw in ["we buy houses", "sell your house fast cash", "cash offer for your house as-is", "sell my house as-is"]:
+        for c in cities(5, offset=3):
             city, st = c.rsplit(" ", 1)
             r = tr.call_get("scrapecreators.x.v1-facebook-adlibrary-search-ads", {"query": f"{kw} {city}", "country": "US", "status": "ACTIVE"}, max_cost=0.01)
             for ad in (r.get("searchResults") or [])[:30]:

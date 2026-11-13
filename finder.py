@@ -14,7 +14,9 @@ import render_emails
 import tr
 
 
-def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier_c=False, shard=0, shards=1, time_limit=780, catchall_share=0.4):
+def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, deadline=None, partial=None,
+        tier_c=False, shard=0, shards=1, catchall_share=0.4):
+    """deadline: epoch seconds after which no new contact lookups start. partial: list that receives each lead as found."""
     tr.CURRENT["service"] = service
     t0 = time.time()
     s0 = tr.spend(service)
@@ -33,8 +35,8 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier
     catchall_max = max(1, int(target * catchall_share + 0.5))
     catchall_n = 0
     while i < len(queue) and len(out) < target:
-        if time.time() - t0 > time_limit:
-            dropped.append({"reason": f"time limit {time_limit}s reached"})
+        if deadline and time.time() > deadline:
+            dropped.append({"reason": "time limit reached"})
             break
         if tr.spend(service) - s0 - s_disc > contact_cap:
             dropped.append({"reason": f"contact budget ${contact_cap} used up"})
@@ -63,6 +65,8 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier
                 dropped.append({"company": c["company"], "domain": c["domain"], "reason": "lint: " + "; ".join(issues)})
                 continue
             out.append(lead)
+            if partial is not None:
+                partial.append(lead)
     spent = tr.spend(service) - s0
     for l in out:
         l["spend_usd"] = round(spent / max(len(out), 1), 4)
@@ -91,8 +95,8 @@ if __name__ == "__main__":
     ap.add_argument("--contact-cap", type=float, default=0.60)
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--shards", type=int, default=1)
-    ap.add_argument("--time-limit", type=int, default=780)
     ap.add_argument("--tier-c", action="store_true", help="fit-only leads with a personal opener (service 11 template 11-intro)")
+    ap.add_argument("--max-minutes", type=float, default=20, help="hard time limit; partial results are still written")
     a = ap.parse_args()
     ex = []
     if a.exclude:
@@ -101,10 +105,23 @@ if __name__ == "__main__":
             ex = d if isinstance(d, list) else list(d)
         except Exception:
             pass
-    res = run(a.service, a.target, ex, a.contact_cap, tier_c=a.tier_c, shard=a.shard, shards=a.shards, time_limit=a.time_limit)
+    import threading
+    partial, box = [], {}
+    t_end = time.time() + a.max_minutes * 60
+    th = threading.Thread(target=lambda: box.update(res=run(a.service, a.target, ex, a.contact_cap, deadline=t_end - 120, partial=partial, tier_c=a.tier_c, shard=a.shard, shards=a.shards)), daemon=True)
+    th.start()
+    th.join(a.max_minutes * 60)
+    if "res" in box:
+        res = box["res"]
+    else:  # hard time limit: keep whatever was found, never exit with no output
+        res = {"leads": list(partial), "dropped": [{"reason": f"hard time limit {a.max_minutes} min"}], "spend_usd": round(tr.spend(a.service), 4),
+               "candidates": None}
     if a.out:
         json.dump(res["leads"], open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in res.items() if k != "leads"}, indent=1))
     print(f"service {a.service}: {len(res['leads'])} verified leads, ${res['spend_usd']} spent")
     for l in res["leads"]:
         print(" -", l["company"], "|", l["first_name"], l["last_name"], "|", l["email"], f"({l['email_source']})", "|", l["signal_plain"][:90])
+    sys.stdout.flush()
+    import os
+    os._exit(0)  # do not wait for stuck worker threads

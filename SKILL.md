@@ -54,7 +54,7 @@ so launch one agent per active service at the same time.
 **Main run, before the agents:** list the active services, build the exclusion list (every domain already in any campaign), and
 launch one agent per service in a single step.
 
-**Each service agent:** runs `python finder.py <service> --target 10 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json`.
+**Each service agent:** runs `python finder.py <service> --target 10 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json --max-minutes 15` (or all services at once through `run_finders.py`, which runs them in waves of 4 and then fills the shortfall with Tier C).
 That does steps 1 to 4 for its service only. It writes no emails and touches no Instantly or Gmail account. If it finds fewer than the
 target it may keep searching by hand within its budget, following `lead_agent_brief.md`. It returns a short summary and its spend.
 
@@ -227,19 +227,17 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 
 **Run.**
 1. Daily cap: 120 new leads (Ayden, 2026-11-13; 30 sends per inbox, so 120 needs 4 inboxes). remaining = 120 minus emails sent today (`instantly.sent_since`). Stop if 0.
-2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains in earlier daily logs.
-3. Section 2a: one agent per active service, in parallel. Lead target 10 each.
-4. Merge, drop duplicates, drop leads without a "valid" or "accept_all" verdict, render and check every email (`render_emails.render`). Keep at most
+2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains of leads in earlier daily logs that were actually added to Instantly (LIVE runs). Leads from DRY_RUN logs, or from runs where the add was blocked, were never emailed and are NOT excluded. Write the list to /tmp/exclude.json as a JSON list of domains.
+3. Section 2a: run `python run_finders.py --exclude /tmp/exclude.json --out /tmp/out --target 10 --cap <remaining>` (one finder per active service in waves of 4 so treg is not overloaded, each with a 15 minute hard limit that always writes /tmp/out/svc_<id>.json, partial if it ran out of time; then, if the total is short of `--cap`, eight Tier C shards sized to the shortfall, written to /tmp/out/svc_tc_<k>.json). Never pad a tier A service; log why it came up short.
+4. Merge, drop duplicates (a company found by two services goes to the stronger signal), drop leads without a "valid" or "accept_all" verdict, render and check every email (`render_emails.render`). Tier A first, Tier C last. Keep at most
    `remaining`, at least one per service that found one, hot leads first.
-4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run eight shards in parallel:
-   `python finder.py 11 --tier-c --shard K --shards 4 --target M --exclude /tmp/exclude.json` for K = 0..3, with M = ceil(N / 4) and
-   N = remaining minus leads so far (Ayden, 2026-11-13: volume first, so Tier C may fill the whole shortfall to learn what converts). These are
-   fit-only leads (right trade, real site, 20+ reviews at 4.0+, verified owner email) with no signal. The email opens with one
-   true fact from the company's own website (an award, the areas they serve, years in business, or family/locally owned), never a
-   claimed signal. They use template `11-intro` and carry `tier=C`.
-   Never claim a signal a Tier C lead does not have.
+4a. **Tier C fill (Ayden approved 2026-11-12; volume first, 2026-11-13).** `run_finders.py` does this itself: if tier A leaves a shortfall it runs
+   eight shards of `python finder.py 11 --tier-c --shard K --shards 8 --target M` (M = ceil(shortfall / 8)). These are fit-only leads
+   (right trade, real site, 20+ reviews at 4.0+, owner email) with no signal. The email opens with one true fact from the company's own
+   website (an award, the areas they serve, years in business, or family/locally owned), never a claimed signal. They use template
+   `11-intro` and carry `tier=C`. Never claim a signal a Tier C lead does not have.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.
-   LIVE: add leads to the template's campaign (find it with `instantly.ensure_campaign(template)`, which creates the 11-intro campaign the first time; `instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
+   LIVE: write the final leads to /tmp/out/final_leads.json and run `python3 add_leads_to_instantly.py --leads /tmp/out/final_leads.json --run-date <today> --cap 120` from the repo folder (it enforces approved templates and the cap, finds or creates each campaign with `instantly.ensure_campaign`, adds, activates, never retries). It uses `instantly.add_leads(...)`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd, tier), activate any campaign
    that received leads, only for templates in `services.approved_templates()`. Log leads for unapproved templates instead. Never retry a send.
 6. Check that each campaign's email text still matches `services.build()` (`python sync_campaigns.py --check`) and alert on drift.
 7. Write the log file to Drive. End it with a fenced ```json block named FUNNEL: one `finder.funnel_row(service, result, today)` per service (the weekly analysis reads it). Include: mode, cap, spend per service, leads per tier (A and C), every lead, every rendered email, dropped leads and why, problems.
