@@ -4,6 +4,7 @@ Writes {"leads": [...], "dropped": [...], "spend_usd": x}. A lead only appears i
 """
 import argparse
 import json
+import re
 import sys
 import time
 
@@ -13,12 +14,12 @@ import render_emails
 import tr
 
 
-def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier_c=False):
+def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier_c=False, shard=0, shards=1, time_limit=780, catchall_share=0.4):
     tr.CURRENT["service"] = service
     t0 = time.time()
     s0 = tr.spend(service)
     try:
-        cands = discover.discover_tier_c(service, exclude=exclude, limit=discover_limit) if tier_c else discover.discover(service, exclude=exclude, limit=discover_limit)
+        cands = discover.discover_tier_c(service, exclude=exclude, limit=max(discover_limit, 60), shard=shard, shards=shards) if tier_c else discover.discover(service, exclude=exclude, limit=discover_limit)
     except Exception as e:  # a broken source must not kill the run
         return {"leads": [], "dropped": [{"reason": "discovery error " + repr(e)[:120]}], "spend_usd": tr.spend(service) - s0}
     s_disc = tr.spend(service) - s0
@@ -29,21 +30,32 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier
             seen.add(c["domain"])
             queue.append(c)
     i = 0
+    catchall_max = max(1, int(target * catchall_share + 0.5))
+    catchall_n = 0
     while i < len(queue) and len(out) < target:
+        if time.time() - t0 > time_limit:
+            dropped.append({"reason": f"time limit {time_limit}s reached"})
+            break
         if tr.spend(service) - s0 - s_disc > contact_cap:
             dropped.append({"reason": f"contact budget ${contact_cap} used up"})
             break
-        batch = queue[i:i + 4]          # four companies at a time (treg calls are slow, not expensive)
-        i += 4
-        results = discover.pmap(lambda c: contact.contact(c["domain"], owner_name=c.get("owner_name")), batch, workers=4)
+        batch = queue[i:i + 6]          # six companies at a time (treg calls are slow, not expensive)
+        i += 6
+        results = discover.pmap(lambda c: contact.contact(c["domain"], owner_name=c.get("owner_name")), batch, workers=6)
         for c, r in zip(batch, results):
             if len(out) >= target:
                 break
             if not r.get("verified"):
                 dropped.append({"company": c["company"], "domain": c["domain"], "reason": r.get("reason")})
                 continue
+            if r.get("catchall"):
+                if catchall_n >= catchall_max:
+                    dropped.append({"company": c["company"], "domain": c["domain"], "reason": "catch-all cap reached"})
+                    continue
+                catchall_n += 1
+            c["fields"] = {k: (re.sub(r"[\u2013\u2014]", "-", v) if isinstance(v, str) else v) for k, v in c["fields"].items()}  # dashes fail the lint
             lead = {"service": service, "template": c["template"], "company": c["company"], "domain": c["domain"], "city": c.get("city"),
-                    "first_name": r["first"], "last_name": r["last"], "title": r["title"], "email": r["email"], "verdict": "valid",
+                    "first_name": r["first"], "last_name": r["last"], "title": r["title"], "email": r["email"], "verdict": "accept_all" if r.get("catchall") else "valid",
                     "email_source": r["email_source"], "name_source": r["name_source"], "signal_plain": c["signal_plain"],
                     "evidence_urls": c.get("evidence_urls", []), "fields": c["fields"], "tier": c.get("tier", "A")}
             _, _, issues = render_emails.render(dict(template=c["template"], first_name=r["first"], company_name=c["company"], **c["fields"]))
@@ -65,7 +77,7 @@ def funnel_row(service, res, run_date):
         k = (d.get("reason") or "unknown").split(":")[0][:40]
         reasons[k] = reasons.get(k, 0) + 1
     kept = len(res.get("leads", []))
-    return {"date": run_date, "service": service, "tier": "C" if any(l.get("tier") == "C" for l in res.get("leads", [])) else "A", "candidates": res.get("candidates", 0), "verified_kept": kept,
+    return {"date": run_date, "service": service, "tier": "C" if any(l.get("tier") == "C" for l in res.get("leads", [])) else "A", "candidates": res.get("candidates", 0), "verified_kept": kept, "catchall_kept": sum(1 for l in res.get("leads", []) if l.get("verdict") == "accept_all"),
             "dropped": len(res.get("dropped", [])), "drop_reasons": reasons, "spend_usd": res.get("spend_usd", 0),
             "usd_per_lead": round(res.get("spend_usd", 0) / kept, 4) if kept else None}
 
@@ -77,6 +89,9 @@ if __name__ == "__main__":
     ap.add_argument("--out")
     ap.add_argument("--exclude")
     ap.add_argument("--contact-cap", type=float, default=0.60)
+    ap.add_argument("--shard", type=int, default=0)
+    ap.add_argument("--shards", type=int, default=1)
+    ap.add_argument("--time-limit", type=int, default=780)
     ap.add_argument("--tier-c", action="store_true", help="fit-only leads with a personal opener (service 11 template 11-intro)")
     a = ap.parse_args()
     ex = []
@@ -86,7 +101,7 @@ if __name__ == "__main__":
             ex = d if isinstance(d, list) else list(d)
         except Exception:
             pass
-    res = run(a.service, a.target, ex, a.contact_cap, tier_c=a.tier_c)
+    res = run(a.service, a.target, ex, a.contact_cap, tier_c=a.tier_c, shard=a.shard, shards=a.shards, time_limit=a.time_limit)
     if a.out:
         json.dump(res["leads"], open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in res.items() if k != "leads"}, indent=1))

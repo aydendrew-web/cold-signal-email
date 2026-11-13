@@ -201,7 +201,13 @@ Then add their domain to the suppression list.
   5 calls a day; blitzapi can be out of capacity; Crustdata cursors expire
   within minutes.
 - Use the email domain from the contact row, not the website domain.
-- Many small-business domains are catch-all (the mail server accepts any address), so treg verify returns `accept_all` and the lead is
+- **Catch-all emails are accepted (Ayden, 2026-11-13, volume first).** For a catch-all domain the lead gets the owner's most likely address
+  (a personal address on their site, else first@domain), `verdict=accept_all`, `emailSource=catchall-guess`. At most 40% of one finder's
+  leads may be catch-all. The 5% bounce alert still pauses every SCE campaign, and the weekly analysis compares `accept_all` against
+  `valid` leads, so cut it back if bounces say so.
+- Service 10 (social posting) now has discovery: Instagram handle from the company's site, last post 60 days to 18 months old, and 2+ new
+  Google reviews in 90 days. Its template is still `new_wording` until Ayden approves it.
+- (Older note) Many small-business domains are catch-all (the mail server accepts any address), so treg verify returns `accept_all` and the lead is
   dropped with reason "catch-all domain (cannot verify)". This was most of the "no valid email" drops on 2026-11-12. Accepting
   catch-all addresses is a deliverability risk (bounces over 5% pause every campaign), so it is Ayden's call. Do not change it unasked.
 - Permit sources: Austin and Chicago only. Kansas City stopped updating in May 2025, Dallas in December 2025, Seattle has no contractor field.
@@ -220,16 +226,17 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 3. `python3 -c 'import instantly; print(len(instantly.list_accounts()))'` must print 3 (the three sending inboxes).
 
 **Run.**
-1. Daily cap: 120 new leads (Ayden, 2026-11-13). remaining = 120 minus emails sent today (`instantly.sent_since`). Stop if 0.
+1. Daily cap: 120 new leads (Ayden, 2026-11-13; 30 sends per inbox, so 120 needs 4 inboxes). remaining = 120 minus emails sent today (`instantly.sent_since`). Stop if 0.
 2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains in earlier daily logs.
 3. Section 2a: one agent per active service, in parallel. Lead target 10 each.
-4. Merge, drop duplicates, drop leads without a "valid" verdict, render and check every email (`render_emails.render`). Keep at most
+4. Merge, drop duplicates, drop leads without a "valid" or "accept_all" verdict, render and check every email (`render_emails.render`). Keep at most
    `remaining`, at least one per service that found one, hot leads first.
-4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run
-   `python finder.py 11 --tier-c --target N --exclude /tmp/exclude.json` with N = min(30, remaining minus leads so far). These are
+4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run four shards in parallel:
+   `python finder.py 11 --tier-c --shard K --shards 4 --target M --exclude /tmp/exclude.json` for K = 0..3, with M = ceil(N / 4) and
+   N = remaining minus leads so far (Ayden, 2026-11-13: volume first, so Tier C may fill the whole shortfall to learn what converts). These are
    fit-only leads (right trade, real site, 20+ reviews at 4.0+, verified owner email) with no signal. The email opens with one
    true fact from the company's own website (an award, the areas they serve, years in business, or family/locally owned), never a
-   claimed signal. They use template `11-intro`, carry `tier=C`, and are capped at 30 a day so the signal leads stay the bulk.
+   claimed signal. They use template `11-intro` and carry `tier=C`.
    Never claim a signal a Tier C lead does not have.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.
    LIVE: add leads to the template's campaign (`instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign

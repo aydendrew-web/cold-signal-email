@@ -110,7 +110,7 @@ def site_claims_24_7(domain):
 
 
 # ---------------------------------------------------------------------------- Indeed-based
-BAD_INDUSTRY = re.compile(r"staffing|recruit|software|information technology|it services|internet|government|education|defense|"
+BAD_INDUSTRY = re.compile(r"insurance|health plan|managed care|staffing|recruit|software|information technology|it services|internet|government|education|defense|"
                           r"human resources|analytics|consulting|marketing|advertising|computer|telecom|e-?learning|university|school", re.I)
 
 
@@ -161,6 +161,9 @@ def jobs_candidates(service, template, queries, need=None, days=45, exclude=(), 
     return out
 
 
+CONTRACTOR_IND = r"construct|building|civil|engineering|contractor|roof|electric|plumb|hvac|mechanical|paving|remodel|home|infrastructure|specialty trade|landscap"
+
+
 KPI = [
     (r"hospital|health|medical|clinic", "patient visits vs. plan, new patient referrals, collections vs. billed, days in accounts receivable, and quality measure performance"),
     (r"bank|credit union|financial services|mortgage", "loans originated vs. plan, deposit growth, net interest margin, delinquencies, and member growth"),
@@ -187,7 +190,7 @@ def socrata(u, params):
         return json.load(r)
 
 
-TRADE_NOT_BUILDER = re.compile(r"plumb|electric|hvac|air cond|mechanical|foundation|leak|irrigation|fire protection|elevator|heating|cooling", re.I)
+TRADE_NOT_BUILDER = re.compile(r"plumb|electric|hvac|air cond|mechanical|foundation|leak|irrigation|fire protection|elevator|heating|cooling|\bsigns?\b|signco|lighting|roof deck|\bpool|landscap|tent", re.I)
 NOT_HOMEBUILDER = re.compile(r"pool|spa\b|landscap|fence|roof|solar|paving|concrete|cabinet|window|garage|deck|patio|sign", re.I)
 
 
@@ -260,6 +263,8 @@ def permit_candidates(service, template, new_only, exclude=(), limit=12, need_te
             if new_only and not re.search(r"home|build|residential|custom|develop|construct", blob, re.I):
                 return None
             if need_team and not (hc and 3 <= hc <= 60):
+                return None
+            if hc and hc > 150:
                 return None
             month = datetime.date.fromisoformat(first).strftime("%B")
             f = {"permitCount": str(n), "permitSince": month, "city": city}
@@ -394,10 +399,10 @@ def personal_opener(domain, company, city=None):
     return None
 
 
-def fit_candidates(service, template, queries, exclude=(), limit=15, max_places=60, min_reviews=20, min_rating=4.0):
+def fit_candidates(service, template, queries, exclude=(), limit=60, max_places=400, min_reviews=20, min_rating=4.0, workers=10):
     """Tier C: right trade, real site, decent reputation, not a chain. No signal; the opener is a stated public fact."""
     places, seen = [], set()
-    for rows, q in zip(pmap(leads.maps, queries), queries):
+    for rows, q in zip(pmap(leads.maps, queries, workers=8), queries):
         for p in rows:
             dom = leads.domain_of(p.get("website"))
             if (not dom or dom in exclude or dom in seen or leads.CHAINS.search(p.get("name", "")) or BIG.search(p.get("name", ""))
@@ -420,13 +425,86 @@ def fit_candidates(service, template, queries, exclude=(), limit=15, max_places=
                     signal_plain="No signal; fit only. Opener from own website: " + op, evidence_urls=[f"https://{dom}/"],
                     fields={"opener": op})
 
-    return [c for c in pmap(check, places, workers=4) if c][:limit]
+    return [c for c in pmap(check, places, workers=workers) if c][:limit]
 
 
-def discover_tier_c(service="11", exclude=(), limit=15):
+TIER_C_TRADES = ("home builder", "remodeling contractor", "roofing contractor", "landscaping company", "HVAC company",
+                 "plumbing company", "general contractor", "custom home builder")
+
+
+def discover_tier_c(service="11", exclude=(), limit=60, shard=0, shards=1):
+    """All 20 cities, 8 trades, split into shards so several processes can run at once (each shard takes every Nth city)."""
     ex = set(exclude)
-    qs = [f"{t} in {c}" for c in cities(6, 5) for t in ("home builder", "remodeling contractor", "roofing contractor", "landscaping company")]
+    cs = [CITIES[i] for i in range(len(CITIES)) if i % shards == shard]
+    qs = [f"{t} in {c}" for c in cs for t in TIER_C_TRADES]
     return fit_candidates(service, "11-intro", qs, exclude=ex, limit=limit)
+
+
+# ---------------------------------------------------------------------------- social posting (10): busy but silent
+def instagram_handle(domain):
+    html = contact.fetch(f"https://{domain}/")
+    for m in re.finditer(r"instagram\.com/([A-Za-z0-9_.]{2,30})", html or ""):
+        h = m.group(1).strip("./")
+        if h.lower() not in ("p", "reel", "reels", "explore", "accounts", "stories", "sharer", "share", "tv"):
+            return h
+    return None
+
+
+def last_post_age_days(handle):
+    r = tr.call_get("scrapecreators.instagram.user.posts", {"handle": handle}, max_cost=0.01)
+    stamps = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k in ("taken_at", "taken_at_timestamp", "timestamp") and isinstance(v, (int, float)) and v > 1e9:
+                    stamps.append(v)
+                else:
+                    walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(r)
+    if not stamps:
+        return None
+    return (datetime.datetime.now().timestamp() - max(stamps)) / 86400
+
+
+def social_candidates(exclude=(), limit=15, max_places=120):
+    """Active (recent reviews) but quiet on Instagram (last post 60+ days ago). Every fact comes from a real source."""
+    qs = [f"{t} in {c}" for c in cities(8, 4) for t in ("home builder", "remodeling contractor", "roofing contractor", "landscaping company")]
+    places, seen = [], set()
+    for rows, q in zip(pmap(leads.maps, qs, workers=8), qs):
+        for p in rows:
+            dom = leads.domain_of(p.get("website"))
+            if (not dom or dom in exclude or dom in seen or leads.CHAINS.search(p.get("name", "")) or BIG.search(p.get("name", ""))
+                    or (p.get("review_count") or 0) < 15):
+                continue
+            seen.add(dom)
+            places.append((p, dom, q))
+    places = places[:max_places]
+
+    def check(item):
+        p, dom, q = item
+        h = instagram_handle(dom)
+        if not h:
+            return None
+        age = last_post_age_days(h)
+        if age is None or age < 60 or age > 540:
+            return None
+        recent = sum(1 for r in leads.reviews(p["place_id"], 40) if leads.within_months(r.get("date"), 3))
+        if recent < 2:
+            return None  # not visibly busy
+        months = int(age / 30.4 + 0.5)
+        name = re.split(r"\s[-|:\u2013\u2014]\s", p["name"])[0].strip()
+        return dict(service="10", template="10-social-video", company=name, domain=dom, city=q.split(" in ")[-1],
+                    signal_plain=f"{recent} new Google reviews in 90 days, last Instagram post {months} months ago (@{h})",
+                    evidence_urls=[f"https://instagram.com/{h}"], score=min(months, 12) / 2 + recent / 3,
+                    fields={"socialPlatform": "Instagram", "lastPostAge": f"{months} months ago",
+                            "activeWork": f"{recent} new Google reviews from the last 90 days"})
+
+    found = [c for c in pmap(check, places, workers=6) if c]
+    return sorted(found, key=lambda c: -c["score"])[:limit]
 
 
 # ---------------------------------------------------------------------------- per-service entry points
@@ -472,13 +550,15 @@ def discover(service, exclude=(), limit=15):
                                                    "bookkeeper construction company", "AP clerk builder", "accounts payable construction",
                                                    "accounting assistant contractor", "invoice processor construction", "accounting clerk roofing"],
                                need=r"construct|contractor|builder|job cost|subcontract|project", exclude=ex, limit=limit, days=60,
-                               need_title=r"payable|\bAP\b|bookkeep|accounting (assistant|clerk|specialist)", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
+                               max_hc=100, industry_ok=CONTRACTOR_IND, need_title=r"payable|\bAP\b|bookkeep|accounting (assistant|clerk|specialist)", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
     if service == "09":
         return jobs_candidates("09", "09-hiring", ["billing coordinator construction", "accounts receivable clerk contractor",
                                                    "AR specialist construction company", "billing specialist roofing", "billing specialist construction",
                                                    "accounts receivable construction", "collections specialist contractor", "invoicing specialist construction"],
                                need=r"construct|contractor|builder|job|project|subcontract", exclude=ex, limit=limit, days=60,
-                               need_title=r"billing|receivable|\bAR\b|collections|invoic", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
+                               max_hc=100, industry_ok=CONTRACTOR_IND, need_title=r"billing|receivable|\bAR\b|collections|invoic", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
+    if service == "10":
+        return social_candidates(exclude=ex, limit=limit)
     if service == "11":
         return winback_candidates(exclude=ex, limit=limit)
     if service == "13":

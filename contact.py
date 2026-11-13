@@ -205,7 +205,10 @@ def contact(domain, owner_name=None, owner_title=None, max_names=3):
             last_reason = f"email on unrelated domain {ed}"
         guesses = list(dict.fromkeys(site_emails(domain, first, last) + patterns(first, last, domain)))
         if verify_status(guesses[0]) == "accept_all":   # catch-all domain: every address "verifies", so no guess can be proven. Stop spending.
-            return {"verified": False, "name": full, "title": title, "reason": "catch-all domain (cannot verify)", "catchall": guesses[0]}
+            # Ayden 2026-11-13: volume first. Use the owner's most likely address (a personal address printed on their site, else first@),
+            # tagged accept_all so the weekly analysis can compare bounces and replies against verified leads.
+            return {"verified": True, "catchall": True, "name": full, "first": first, "last": last, "title": title, "email": guesses[0],
+                    "email_source": "catchall-guess", "name_source": source}
         from concurrent.futures import ThreadPoolExecutor   # verify all guesses at once, keep the first valid one in pattern order
         with ThreadPoolExecutor(max_workers=5) as ex:
             verdicts = list(ex.map(verify, guesses))

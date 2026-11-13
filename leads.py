@@ -13,7 +13,8 @@ import tr
 CHAINS = re.compile(
     r"roto-rooter|mr\.? rooter|one hour|aire serv|abc home|lowe'?s|home depot|service experts|turner|clayco|hensel|"
     r"granite|dpr |whiting|skanska|brookfield|woodside|lennar|pulte|d\.?r\.? horton|kb home|toll brothers|"
-    r"meritage|taylor morrison|highland homes|perry homes", re.I)
+    r"meritage|taylor morrison|highland homes|perry homes|crst|amerihealth|caritas|kaiser|humana|aetna|cigna|anthem|centene|molina|"
+    r"unitedhealth|blue cross|pepper construction|walsh (group|construction)|mortenson|hoffman construction|gilbane|mccarthy building|kiewit|jacobs engineering|clark construction", re.I)
 SKIP_SITES = ("facebook.com", "instagram.com", "yelp.com", "linkedin.com", "google.com", "angi.com", "houzz.com")
 CORP_WORDS = re.compile(r"\b(inc|llc|ltd|corp|company|co|group|construction|builders|homes|services|associates|holdings|dba)\b", re.I)
 STOP = {"llc", "inc", "co", "company", "the", "and", "group", "corp", "ltd", "of", "services"}
