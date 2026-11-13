@@ -203,36 +203,80 @@ def austin_permit_counts(since_days=270, new_only=True, lo=5, hi=60, limit=60):
     return [(r["contractor_company_name"], int(r["n"]), r["first"][:10]) for r in rows]
 
 
+def chicago_permit_counts(since_days=270, new_only=True, lo=3, hi=60, limit=60):
+    """Chicago open data: the general contractor sits in a different contact slot per permit, so query slots 1 to 8 and merge."""
+    since = (datetime.date.today() - datetime.timedelta(days=since_days)).isoformat()
+    tot = {}
+    for n in range(1, 9):
+        where = f"issue_date > '{since}' AND contact_{n}_type = 'CONTRACTOR-GENERAL CONTRACTOR' AND contact_{n}_name is not null"
+        if new_only:
+            where += " AND permit_type = 'PERMIT - NEW CONSTRUCTION'"
+        try:
+            rows = socrata("data.cityofchicago.org/resource/ydr8-5enu", {
+                "$select": f"contact_{n}_name as name,count(*) as n,min(issue_date) as first", "$where": where,
+                "$group": f"contact_{n}_name", "$order": "n desc", "$limit": "200"})
+        except Exception:
+            continue  # one slot failing must not lose the others
+        for r in rows:
+            k = r["name"].strip().upper()
+            c, f = tot.get(k, (0, "9999"))
+            tot[k] = (c + int(r["n"]), min(f, r["first"][:10]))
+    out = [(k, c, f) for k, (c, f) in tot.items() if lo <= c <= hi]
+    return sorted(out, key=lambda x: -x[1])[:limit]
+
+
+# city label, counts function. Kansas City (to May 2025), Dallas (to Dec 2025) and Seattle (no contractor field) were checked and skipped.
+PERMIT_SOURCES = [("Austin TX", lambda **k: austin_permit_counts(**k)), ("Chicago IL", lambda **k: chicago_permit_counts(**k))]
+
+
 def permit_candidates(service, template, new_only, exclude=(), limit=12, need_team=False, lo=5, hi=60):
     out = []
-    for name, n, first in austin_permit_counts(new_only=new_only, lo=lo, hi=hi):
-        clean = re.sub(r"\(.*?\)|\*+|,? ?(LLC|INC|LP|LTD)\.?$", "", name, flags=re.I).strip(" ,.")
-        if BIG.search(clean) or leads.CHAINS.search(clean) or TRADE_NOT_BUILDER.search(clean) or (new_only and NOT_HOMEBUILDER.search(clean)):
+    share = -(-limit // len(PERMIT_SOURCES))      # each city gets an equal share so the first city cannot use the whole limit
+    for city_label, counts in PERMIT_SOURCES:
+        city = city_label.rsplit(" ", 1)[0]
+        start = len(out)
+        try:
+            rows = counts(new_only=new_only, lo=lo, hi=hi)
+        except Exception:
             continue
-        dom = None
-        for pl in leads.maps(f"{clean} Austin TX")[:4]:
-            d = leads.domain_of(pl.get("website"))
-            if d and leads.name_matches(clean, d, pl.get("name", "")):
-                dom = d
-                break
-        if not dom or dom in exclude:
-            continue
-        e = leads.enrich_domain(dom)
-        hc = leads.headcount(e)
-        blob = (e.get("industry") or "") + " " + (e.get("description") or "") + " " + clean
-        if new_only and not re.search(r"home|build|residential|custom|develop|construct", blob, re.I):
-            continue
-        if need_team and not (hc and 3 <= hc <= 60):
-            continue
-        month = datetime.date.fromisoformat(first).strftime("%B")
-        f = {"permitCount": str(n), "permitSince": month, "city": "Austin"}
-        if need_team:
-            f["teamSize"] = str(hc)
-        out.append(dict(service=service, template=template, company=clean, domain=dom, city="Austin TX", headcount=hc,
-                        signal_plain=f"Austin open data: {n} {'new residential' if new_only else 'residential building'} permits since {first}",
-                        evidence_urls=["https://data.austintexas.gov/resource/3syk-w9eu"], score=min(n, 40) / 4, fields=f))
-        if len(out) >= limit:
-            break
+        def check(row, city_label=city_label, city=city):
+            name, n, first = row
+            clean = re.sub(r"\(.*?\)|\*+|,? ?(LLC|INC|LP|LTD|INCORPORATED)\.?$", "", name, flags=re.I).strip(" ,.")
+            if city_label.startswith("Chicago"):
+                clean = clean.title()
+            if BIG.search(clean) or leads.CHAINS.search(clean) or TRADE_NOT_BUILDER.search(clean) or (new_only and NOT_HOMEBUILDER.search(clean)):
+                return None
+            dom = None
+            for pl in leads.maps(f"{clean} {city_label}")[:4]:
+                d = leads.domain_of(pl.get("website"))
+                if d and leads.name_matches(clean, d, pl.get("name", "")):
+                    dom = d
+                    break
+            if not dom or dom in exclude:
+                return None
+            e = leads.enrich_domain(dom)
+            hc = leads.headcount(e)
+            blob = (e.get("industry") or "") + " " + (e.get("description") or "") + " " + clean
+            if new_only and not re.search(r"home|build|residential|custom|develop|construct", blob, re.I):
+                return None
+            if need_team and not (hc and 3 <= hc <= 60):
+                return None
+            month = datetime.date.fromisoformat(first).strftime("%B")
+            f = {"permitCount": str(n), "permitSince": month, "city": city}
+            if need_team:
+                f["teamSize"] = str(hc)
+            src = "data.austintexas.gov/resource/3syk-w9eu" if city == "Austin" else "data.cityofchicago.org/resource/ydr8-5enu"
+            return dict(service=service, template=template, company=clean, domain=dom, city=city_label, headcount=hc,
+                        signal_plain=f"{city} open data: {n} {'new construction' if new_only else 'building'} permits since {first}",
+                        evidence_urls=["https://" + src], score=min(n, 40) / 4, fields=f)
+
+        # look companies up in parallel (slow treg calls), keep the top rows by permit count, first come first kept
+        found = [c for c in pmap(check, rows[:share * 4], workers=6) if c]
+        seen = set()
+        for c in found:
+            if c["domain"] not in seen and len(out) - start < share:
+                seen.add(c["domain"])
+                out.append(c)
     return out
 
 
@@ -313,13 +357,33 @@ def ad_candidates(exclude=(), limit=15):
 
 
 # ---------------------------------------------------------------------------- tier C: fit only, personal opener
+AWARD = [
+    (r"best of houzz[^.]{0,20}?(20\d\d)", "has been named a Best of Houzz winner ({0})"),
+    (r"(20\d\d)[^.]{0,25}parade of homes", "took part in the {0} Parade of Homes"),
+    (r"parade of homes[^.]{0,25}(20\d\d)", "took part in the {0} Parade of Homes"),
+    (r"angi[^.]{0,30}super service award", "has won the Angi Super Service Award"),
+    (r"bbb[^.]{0,25}accredited since (19\d\d|20[01]\d)", "has been BBB accredited since {0}"),
+    (r"(nari|nahb|remodeling)[^.]{0,30}(20\d\d)[^.]{0,20}award", "has won a {1} award"),
+]
+
+
 def personal_opener(domain, company, city=None):
     """One true, public fact from the company's OWN website, as a sentence. None if nothing is verifiable (then no lead).
-    Never a signal claim and never anything about a person: only business facts the company states itself."""
-    html = contact.fetch(f"https://{domain}/") + " " + contact.fetch(f"https://{domain}/about") + " " + contact.fetch(f"https://{domain}/about-us")
+    Never a signal claim and never anything about a person: only business facts the company states itself.
+    Best to weakest: an award or accreditation they list, the areas they say they serve, years in business, family/local owned."""
+    html = " ".join(contact.fetch(f"https://{domain}{p}") for p in ("/", "/about", "/about-us"))
     txt = contact.page_text(html)
-    yrs = years_in_business(domain)
     where = f" in {city.split(',')[0].rsplit(' ', 1)[0]}" if city else ""
+    for rx, tmpl in AWARD:
+        m = re.search(rx, txt, re.I)
+        if m:
+            g = m.groups()
+            return f"Saw that {company} " + tmpl.format(*g) + "."
+    m = re.search(r"(?:proudly )?serv(?:ing|es|ice area)[:\s]+((?:[A-Z][a-z]+(?: [A-Z][a-z]+)?(?:, | and | & )){1,4}[A-Z][a-z]+(?: [A-Z][a-z]+)?)", txt)
+    if m and len(m.group(1)) < 70:
+        areas = re.sub(r"\s*&\s*", " and ", m.group(1))
+        return f"Saw that {company} serves {areas}."
+    yrs = years_in_business(domain)
     if yrs and 8 <= yrs <= 80:
         return f"{company} has been in business{where} for {yrs} years."
     if re.search(r"family[- ](owned|operated|run)", txt, re.I):

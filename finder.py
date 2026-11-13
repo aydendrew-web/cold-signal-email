@@ -33,9 +33,9 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier
         if tr.spend(service) - s0 - s_disc > contact_cap:
             dropped.append({"reason": f"contact budget ${contact_cap} used up"})
             break
-        batch = queue[i:i + 3]          # three companies at a time (treg calls are slow, not expensive)
-        i += 3
-        results = discover.pmap(lambda c: contact.contact(c["domain"], owner_name=c.get("owner_name")), batch, workers=3)
+        batch = queue[i:i + 4]          # four companies at a time (treg calls are slow, not expensive)
+        i += 4
+        results = discover.pmap(lambda c: contact.contact(c["domain"], owner_name=c.get("owner_name")), batch, workers=4)
         for c, r in zip(batch, results):
             if len(out) >= target:
                 break

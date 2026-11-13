@@ -182,8 +182,12 @@ def contact(domain, owner_name=None, owner_title=None, max_names=2):
                 return {"verified": True, "name": full, "first": first, "last": last, "title": title, "email": email,
                         "email_source": "find", "name_source": source}
             last_reason = f"email on unrelated domain {ed}"
-        for guess in patterns(first, last, domain):
-            if verify(guess):
+        guesses = patterns(first, last, domain)
+        from concurrent.futures import ThreadPoolExecutor   # verify all guesses at once, keep the first valid one in pattern order
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            verdicts = list(ex.map(verify, guesses))
+        for guess, ok_guess in zip(guesses, verdicts):
+            if ok_guess:
                 return {"verified": True, "name": full, "first": first, "last": last, "title": title, "email": guess,
                         "email_source": "pattern", "name_source": source}
         last_reason = last_reason if "unrelated" in last_reason else "no valid email (find + 4 patterns)"
