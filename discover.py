@@ -312,6 +312,59 @@ def ad_candidates(exclude=(), limit=15):
     return out
 
 
+# ---------------------------------------------------------------------------- tier C: fit only, personal opener
+def personal_opener(domain, company, city=None):
+    """One true, public fact from the company's OWN website, as a sentence. None if nothing is verifiable (then no lead).
+    Never a signal claim and never anything about a person: only business facts the company states itself."""
+    html = contact.fetch(f"https://{domain}/") + " " + contact.fetch(f"https://{domain}/about") + " " + contact.fetch(f"https://{domain}/about-us")
+    txt = contact.page_text(html)
+    yrs = years_in_business(domain)
+    where = f" in {city.split(',')[0].rsplit(' ', 1)[0]}" if city else ""
+    if yrs and 8 <= yrs <= 80:
+        return f"{company} has been in business{where} for {yrs} years."
+    if re.search(r"family[- ](owned|operated|run)", txt, re.I):
+        return f"Saw that {company} is family owned{where}."
+    m = re.search(r"(locally[- ](owned|operated)|owner[- ]operated)", txt, re.I)
+    if m:
+        return f"Saw that {company} is {m.group(1).lower()}{where}."
+    return None
+
+
+def fit_candidates(service, template, queries, exclude=(), limit=15, max_places=60, min_reviews=20, min_rating=4.0):
+    """Tier C: right trade, real site, decent reputation, not a chain. No signal; the opener is a stated public fact."""
+    places, seen = [], set()
+    for rows, q in zip(pmap(leads.maps, queries), queries):
+        for p in rows:
+            dom = leads.domain_of(p.get("website"))
+            if (not dom or dom in exclude or dom in seen or leads.CHAINS.search(p.get("name", "")) or BIG.search(p.get("name", ""))
+                    or (p.get("review_count") or 0) < min_reviews or (p.get("rating") or 0) < min_rating):
+                continue
+            seen.add(dom)
+            places.append((p, dom, q))
+    places = places[:max_places]
+
+    def check(item):
+        p, dom, q = item
+        city = q.split(" in ")[-1]
+        name = re.split(r"\s[-|:\u2013\u2014]\s", p["name"])[0].strip()   # drop SEO tails like "- Twin Cities Custom Home Builders"
+        if len(name.split()) > 5:
+            return None
+        op = personal_opener(dom, name, city)
+        if not op:
+            return None
+        return dict(service=service, template=template, company=name, domain=dom, city=city, tier="C", score=3,
+                    signal_plain="No signal; fit only. Opener from own website: " + op, evidence_urls=[f"https://{dom}/"],
+                    fields={"opener": op})
+
+    return [c for c in pmap(check, places, workers=4) if c][:limit]
+
+
+def discover_tier_c(service="11", exclude=(), limit=15):
+    ex = set(exclude)
+    qs = [f"{t} in {c}" for c in cities(6, 5) for t in ("home builder", "remodeling contractor", "roofing contractor", "landscaping company")]
+    return fit_candidates(service, "11-intro", qs, exclude=ex, limit=limit)
+
+
 # ---------------------------------------------------------------------------- per-service entry points
 def discover(service, exclude=(), limit=15):
     ex = set(exclude)

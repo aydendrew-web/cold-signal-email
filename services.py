@@ -106,6 +106,10 @@ TEMPLATES = {
         body="Hi {{firstName}},\n\n{{companyName}} has {{reviewCount}} Google reviews from {{yearsInBusiness}} years of work, but only {{reviewsLast90}} "
              "in the last 90 days. Those past clients are the likeliest to hire you again or send you a neighbor, if they remember your name.\n\n"
              "I built an agent that thanks every client at the finish, asks for the review, and checks in a few times a year with a referral ask. " + ASK),
+    "11-intro": dict(service="11", fields=["opener"], new_wording=True,
+        subject="{{companyName}} past clients",
+        body="Hi {{firstName}},\n\n{{opener}} Work for a business like that mostly comes back through past clients and the neighbors they tell.\n\n"
+             "I built an agent that thanks every client at the finish, asks for the review, and checks in a few times a year with a referral ask. " + ASK),
     "13-seller-leads": dict(service="13", fields=["city", "area", "adDescription"],
         subject="seller leads in {{city}}",
         body="Hi {{firstName}},\n\nSaw {{companyName}} is running {{adDescription}} in {{city}}. Paid seller leads get expensive, and most of them have "

@@ -13,12 +13,12 @@ import render_emails
 import tr
 
 
-def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15):
+def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, tier_c=False):
     tr.CURRENT["service"] = service
     t0 = time.time()
     s0 = tr.spend(service)
     try:
-        cands = discover.discover(service, exclude=exclude, limit=discover_limit)
+        cands = discover.discover_tier_c(service, exclude=exclude, limit=discover_limit) if tier_c else discover.discover(service, exclude=exclude, limit=discover_limit)
     except Exception as e:  # a broken source must not kill the run
         return {"leads": [], "dropped": [{"reason": "discovery error " + repr(e)[:120]}], "spend_usd": tr.spend(service) - s0}
     s_disc = tr.spend(service) - s0
@@ -45,7 +45,7 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15):
             lead = {"service": service, "template": c["template"], "company": c["company"], "domain": c["domain"], "city": c.get("city"),
                     "first_name": r["first"], "last_name": r["last"], "title": r["title"], "email": r["email"], "verdict": "valid",
                     "email_source": r["email_source"], "name_source": r["name_source"], "signal_plain": c["signal_plain"],
-                    "evidence_urls": c.get("evidence_urls", []), "fields": c["fields"]}
+                    "evidence_urls": c.get("evidence_urls", []), "fields": c["fields"], "tier": c.get("tier", "A")}
             _, _, issues = render_emails.render(dict(template=c["template"], first_name=r["first"], company_name=c["company"], **c["fields"]))
             if issues:
                 dropped.append({"company": c["company"], "domain": c["domain"], "reason": "lint: " + "; ".join(issues)})
@@ -65,7 +65,7 @@ def funnel_row(service, res, run_date):
         k = (d.get("reason") or "unknown").split(":")[0][:40]
         reasons[k] = reasons.get(k, 0) + 1
     kept = len(res.get("leads", []))
-    return {"date": run_date, "service": service, "candidates": res.get("candidates", 0), "verified_kept": kept,
+    return {"date": run_date, "service": service, "tier": "C" if any(l.get("tier") == "C" for l in res.get("leads", [])) else "A", "candidates": res.get("candidates", 0), "verified_kept": kept,
             "dropped": len(res.get("dropped", [])), "drop_reasons": reasons, "spend_usd": res.get("spend_usd", 0),
             "usd_per_lead": round(res.get("spend_usd", 0) / kept, 4) if kept else None}
 
@@ -77,6 +77,7 @@ if __name__ == "__main__":
     ap.add_argument("--out")
     ap.add_argument("--exclude")
     ap.add_argument("--contact-cap", type=float, default=0.60)
+    ap.add_argument("--tier-c", action="store_true", help="fit-only leads with a personal opener (service 11 template 11-intro)")
     a = ap.parse_args()
     ex = []
     if a.exclude:
@@ -85,7 +86,7 @@ if __name__ == "__main__":
             ex = d if isinstance(d, list) else list(d)
         except Exception:
             pass
-    res = run(a.service, a.target, ex, a.contact_cap)
+    res = run(a.service, a.target, ex, a.contact_cap, tier_c=a.tier_c)
     if a.out:
         json.dump(res["leads"], open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in res.items() if k != "leads"}, indent=1))
