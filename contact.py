@@ -107,7 +107,28 @@ def people_search(domain):
 def patterns(first, last, domain):
     f, l = first.lower(), last.lower()
     f, l = re.sub(r"[^a-z]", "", f), re.sub(r"[^a-z]", "", l)
-    return [f"{f}@{domain}", f"{f}.{l}@{domain}", f"{f}{l}@{domain}", f"{f[0]}{l}@{domain}"]
+    return [f"{f}@{domain}", f"{f}.{l}@{domain}", f"{f}{l}@{domain}", f"{f[0]}{l}@{domain}",
+            f"{l}@{domain}", f"{f}{l[0]}@{domain}", f"{f[0]}.{l}@{domain}", f"{f}_{l}@{domain}", f"{l}{f[0]}@{domain}"]
+
+
+def site_emails(domain, first, last):
+    """Personal-looking addresses printed on the company's own pages that contain the owner's first or last name."""
+    f, l = re.sub(r"[^a-z]", "", first.lower()), re.sub(r"[^a-z]", "", last.lower())
+    found = []
+    for p in ("", "contact", "contact-us", "about", "about-us"):
+        html = fetch(f"https://{domain}/{p}" if p else f"https://{domain}/")
+        for m in re.finditer(r"[A-Za-z0-9._%+-]+@" + re.escape(domain), html or "", re.I):
+            e = m.group(0).lower()
+            local = e.split("@")[0]
+            if local not in GENERIC and (f in local or (len(l) > 2 and l in local)) and e not in found:
+                found.append(e)
+    return found
+
+
+def verify_status(email):
+    r = tr.call("treg.people.email.verify", {"email": email}, max_cost=0.02)
+    o = r.get("output") or {}
+    return str(o.get("status", "")).lower() if isinstance(o, dict) else ""
 
 
 def verify(email):
@@ -150,7 +171,7 @@ def _find(domain, first, last):
     return email, ok
 
 
-def contact(domain, owner_name=None, owner_title=None, max_names=2):
+def contact(domain, owner_name=None, owner_title=None, max_names=3):
     """Find a decision-maker and a verified email. Returns {verified: True, ...} or {reason: ...}."""
     names = []
     source = None
@@ -182,13 +203,15 @@ def contact(domain, owner_name=None, owner_title=None, max_names=2):
                 return {"verified": True, "name": full, "first": first, "last": last, "title": title, "email": email,
                         "email_source": "find", "name_source": source}
             last_reason = f"email on unrelated domain {ed}"
-        guesses = patterns(first, last, domain)
+        guesses = list(dict.fromkeys(site_emails(domain, first, last) + patterns(first, last, domain)))
+        if verify_status(guesses[0]) == "accept_all":   # catch-all domain: every address "verifies", so no guess can be proven. Stop spending.
+            return {"verified": False, "name": full, "title": title, "reason": "catch-all domain (cannot verify)", "catchall": guesses[0]}
         from concurrent.futures import ThreadPoolExecutor   # verify all guesses at once, keep the first valid one in pattern order
-        with ThreadPoolExecutor(max_workers=4) as ex:
+        with ThreadPoolExecutor(max_workers=5) as ex:
             verdicts = list(ex.map(verify, guesses))
         for guess, ok_guess in zip(guesses, verdicts):
             if ok_guess:
                 return {"verified": True, "name": full, "first": first, "last": last, "title": title, "email": guess,
                         "email_source": "pattern", "name_source": source}
-        last_reason = last_reason if "unrelated" in last_reason else "no valid email (find + 4 patterns)"
+        last_reason = last_reason if "unrelated" in last_reason else "no valid email (find + site + 9 patterns)"
     return {"verified": False, "name": names[0][0], "title": names[0][1], "reason": last_reason}

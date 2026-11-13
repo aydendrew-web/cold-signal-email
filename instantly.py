@@ -52,7 +52,7 @@ def list_campaigns():
     return d.get("items", [])
 
 
-def create_campaign(name, subject, body, senders, daily_limit=15):
+def create_campaign(name, subject, body, senders, daily_limit=30):
     """Create a campaign (status 0 = draft, not sending). Body/subject keep Instantly merge tags."""
     days = {str(i): True for i in range(7)}
     return api("POST", "/campaigns", {

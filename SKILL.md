@@ -54,7 +54,7 @@ so launch one agent per active service at the same time.
 **Main run, before the agents:** list the active services, build the exclusion list (every domain already in any campaign), and
 launch one agent per service in a single step.
 
-**Each service agent:** runs `python finder.py <service> --target 4 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json`.
+**Each service agent:** runs `python finder.py <service> --target 10 --out /tmp/out/svc_<service>.json --exclude /tmp/exclude.json`.
 That does steps 1 to 4 for its service only. It writes no emails and touches no Instantly or Gmail account. If it finds fewer than the
 target it may keep searching by hand within its budget, following `lead_agent_brief.md`. It returns a short summary and its spend.
 
@@ -112,7 +112,7 @@ emails (step 5). Only the main run writes the lead file, the log and the suppres
 
 **Instantly (default once inboxes are warm).** Follow
 `../cold-email-deliverability/SKILL.md`: never from the primary domain,
-15 to 30 sends per inbox per day, plain text, no open tracking, zero or one
+30 sends per inbox per day (the ceiling), plain text, no open tracking, zero or one
 link, verified list only.
 - Templates are written with Instantly merge tags (`{{firstName}}`,
   `{{companyName}}`, plus the playbook's custom fields). Upload the leads as
@@ -201,6 +201,10 @@ Then add their domain to the suppression list.
   5 calls a day; blitzapi can be out of capacity; Crustdata cursors expire
   within minutes.
 - Use the email domain from the contact row, not the website domain.
+- Many small-business domains are catch-all (the mail server accepts any address), so treg verify returns `accept_all` and the lead is
+  dropped with reason "catch-all domain (cannot verify)". This was most of the "no valid email" drops on 2026-11-12. Accepting
+  catch-all addresses is a deliverability risk (bounces over 5% pause every campaign), so it is Ayden's call. Do not change it unasked.
+- Permit sources: Austin and Chicago only. Kansas City stopped updating in May 2025, Dallas in December 2025, Seattle has no contractor field.
 - Windows: Python can't see `/tmp`; keep working files in the offer folder or
   the session scratchpad.
 
@@ -216,16 +220,22 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 3. `python3 -c 'import instantly; print(len(instantly.list_accounts()))'` must print 3 (the three sending inboxes).
 
 **Run.**
-1. Daily cap: 45 new leads. remaining = 45 minus emails sent today (`instantly.sent_since`). Stop if 0.
+1. Daily cap: 120 new leads (Ayden, 2026-11-13). remaining = 120 minus emails sent today (`instantly.sent_since`). Stop if 0.
 2. Exclusion list: every email domain in every campaign listed in `campaigns.json`, plus domains in earlier daily logs.
-3. Section 2a: one agent per active service, in parallel. Lead target 4 each.
+3. Section 2a: one agent per active service, in parallel. Lead target 10 each.
 4. Merge, drop duplicates, drop leads without a "valid" verdict, render and check every email (`render_emails.render`). Keep at most
    `remaining`, at least one per service that found one, hot leads first.
+4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run
+   `python finder.py 11 --tier-c --target N --exclude /tmp/exclude.json` with N = min(30, remaining minus leads so far). These are
+   fit-only leads (right trade, real site, 20+ reviews at 4.0+, verified owner email) with no signal. The email opens with one
+   true fact from the company's own website (an award, the areas they serve, years in business, or family/locally owned), never a
+   claimed signal. They use template `11-intro`, carry `tier=C`, and are capped at 30 a day so the signal leads stay the bulk.
+   Never claim a signal a Tier C lead does not have.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.
    LIVE: add leads to the template's campaign (`instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
    that received leads, only for templates in `services.approved_templates()`. Log leads for unapproved templates instead. Never retry a send.
 6. Check that each campaign's email text still matches `services.build()` (`python sync_campaigns.py --check`) and alert on drift.
-7. Write the log file to Drive. End it with a fenced ```json block named FUNNEL: one `finder.funnel_row(service, result, today)` per service (the weekly analysis reads it). Include: mode, cap, spend per service, every lead, every rendered email, dropped leads and why, problems.
+7. Write the log file to Drive. End it with a fenced ```json block named FUNNEL: one `finder.funnel_row(service, result, today)` per service (the weekly analysis reads it). Include: mode, cap, spend per service, leads per tier (A and C), every lead, every rendered email, dropped leads and why, problems.
 
 **Alerts** (Gmail to the alert address given in the routine prompt, subject starting "[Signal cold email]"): setup failure; run spend over $3; bounce rate above 5%
 in 24 hours (also pause every "SCE |" campaign); any Instantly error; fewer than 3 leads in total; campaign drift.

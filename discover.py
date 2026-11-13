@@ -99,7 +99,7 @@ def review_candidates(service, template, queries, regex, theme=None, months=12, 
                             evidence_urls=[], score=10 - (leads.months_ago(rv.get("date")) or 6) / 2, fields=f)
         return None
 
-    found = [c for c in pmap(check, places, workers=4) if c]
+    found = [c for c in pmap(check, places, workers=6) if c]
     return sorted(found, key=lambda c: -c["score"])[:limit]
 
 
@@ -433,15 +433,15 @@ def discover_tier_c(service="11", exclude=(), limit=15):
 def discover(service, exclude=(), limit=15):
     ex = set(exclude)
     if service == "01":
-        qs = [f"{t} in {c}" for c in cities(6) for t in ("remodeling contractor", "home builder", "general contractor", "roofing contractor")]
+        qs = [f"{t} in {c}" for c in cities(8) for t in ("remodeling contractor", "home builder", "general contractor", "roofing contractor", "plumbing company", "HVAC company", "landscaping company")]
         return review_candidates("01", "01-reviews", qs,
-                                 r"never (called|got a call|heard|returned)|no (response|call ?back)|didn.t (return|call back|respond)|hard to reach|couldn.t get a hold|never got (a )?(quote|estimate)|stopped (responding|answering)|ignored (my|our) (calls|emails|messages)",
-                                 theme="a call that never got returned", exclude=ex, limit=limit, max_places=70)
+                                 r"never (called|got a call|heard|returned|responded|replied)|no (response|call ?back|reply)|didn.t (return|call back|respond|hear back|reply)|hard to reach|couldn.t get a hold|never got (a )?(quote|estimate|bid)|stopped (responding|answering)|ignored (my|our) (calls|emails|messages|texts)|unresponsive|(waited|waiting) (days|weeks|over a week)|no one (called|got back|returned)|never got back",
+                                 theme="a call that never got returned", exclude=ex, limit=limit, max_places=110)
     if service == "02":
-        qs = [f"{t} in {c}" for c in cities(6, 1) for t in ("emergency plumber", "HVAC repair", "emergency electrician", "garage door repair")]
+        qs = [f"{t} in {c}" for c in cities(8, 1) for t in ("emergency plumber", "HVAC repair", "emergency electrician", "garage door repair", "water damage restoration")]
         cands = review_candidates("02", "02-voicemail", qs,
                                   r"voicemail|no one answered|nobody answered|never answered|after hours|on a weekend|didn.t answer|couldn.t reach (anyone|them)|no answer",
-                                  exclude=ex, limit=limit, max_places=70)
+                                  exclude=ex, limit=limit, max_places=110)
         for c in cands:  # upgrade to the approved template when the site really claims 24/7
             claim = site_claims_24_7(c["domain"])
             if claim:
@@ -450,32 +450,34 @@ def discover(service, exclude=(), limit=15):
                 c["score"] += 3
         return sorted(cands, key=lambda c: -c["score"])
     if service == "03":
-        qs = [f"{t} in {c}" for c in cities(6, 2) for t in ("custom home builder", "home builder", "home remodeling contractor")]
+        qs = [f"{t} in {c}" for c in cities(9, 2) for t in ("custom home builder", "home builder", "home remodeling contractor", "general contractor")]
         a = jobs_candidates("03", "03-hiring", ["warranty coordinator custom home builder", "customer care coordinator home builder",
                                                 "client experience coordinator builder", "homeowner liaison home builder"],
                             need=r"home|build|construct|warrant|homeowner", exclude=ex, limit=limit, need_company=r"home|build|construct|remodel|develop",
                             need_title=r"warrant|customer care|client (care|experience|relations)|homeowner|post.?closing|customer experience|service coordinator")
-        b = review_candidates("03", "03-reviews", qs, r"no updates?|never knew what|had to (keep )?(call|chase)|lack of communication|poor communication|ghosted|stopped communicating|no communication",
-                              exclude=ex, limit=limit, max_places=60)
+        b = review_candidates("03", "03-reviews", qs, r"no updates?|never knew what|had to (keep )?(call|chase)|lack of communication|poor communication|ghosted|stopped communicating|no communication|kept in the dark|in the dark|never (updated|informed|told)|rarely (heard|communicat)|communication (was|is) (poor|lacking|terrible)|hard to get (an )?(update|answer)",
+                              exclude=ex, limit=limit, max_places=100)
         return a + b
     if service == "04":
-        qs = [f"{t} in {c}" for c in cities(8, 3) for t in ("custom home builder", "kitchen remodeling contractor", "home remodeling contractor", "bathroom remodeling contractor")]
+        qs = [f"{t} in {c}" for c in cities(12, 3) for t in ("custom home builder", "kitchen remodeling contractor", "home remodeling contractor", "bathroom remodeling contractor", "home addition contractor")]
         return review_candidates("04", "04-change-orders", qs,
                                  r"change orders?|wrong (tile|finish|fixture|cabinets?|paint)|not what we (picked|chose|selected|ordered)|charged (us )?(extra|more)|had to (redo|replace|fix)|extra charges?",
-                                 theme="change orders and extra charges", exclude=ex, limit=limit, max_places=100)
+                                 theme="change orders and extra charges", exclude=ex, limit=limit, max_places=150)
     if service == "05":
         return permit_candidates("05", "05-draws", new_only=True, exclude=ex, limit=limit)
     if service == "06":
         return permit_candidates("06", "06-permits", new_only=False, exclude=ex, limit=limit, need_team=True, lo=20, hi=250)
     if service == "08":
         return jobs_candidates("08", "08-hiring", ["accounts payable clerk construction", "accounts payable specialist contractor",
-                                                   "bookkeeper construction company", "AP clerk builder"],
-                               need=r"construct|contractor|builder|job cost|subcontract|project", exclude=ex, limit=limit,
+                                                   "bookkeeper construction company", "AP clerk builder", "accounts payable construction",
+                                                   "accounting assistant contractor", "invoice processor construction", "accounting clerk roofing"],
+                               need=r"construct|contractor|builder|job cost|subcontract|project", exclude=ex, limit=limit, days=60,
                                need_title=r"payable|\bAP\b|bookkeep|accounting (assistant|clerk|specialist)", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
     if service == "09":
         return jobs_candidates("09", "09-hiring", ["billing coordinator construction", "accounts receivable clerk contractor",
-                                                   "AR specialist construction company", "billing specialist roofing"],
-                               need=r"construct|contractor|builder|job|project|subcontract", exclude=ex, limit=limit,
+                                                   "AR specialist construction company", "billing specialist roofing", "billing specialist construction",
+                                                   "accounts receivable construction", "collections specialist contractor", "invoicing specialist construction"],
+                               need=r"construct|contractor|builder|job|project|subcontract", exclude=ex, limit=limit, days=60,
                                need_title=r"billing|receivable|\bAR\b|collections|invoic", need_company=r"construct|contract|build|roof|electric|plumb|hvac|paving|civil|remodel|develop")
     if service == "11":
         return winback_candidates(exclude=ex, limit=limit)
@@ -483,8 +485,9 @@ def discover(service, exclude=(), limit=15):
         return ad_candidates(exclude=ex, limit=limit)
     if service == "16":
         out = []
-        for c in jobs_candidates("16", "16-reporting", ["reporting analyst", "business intelligence analyst", "data reporting analyst", "BI analyst"],
-                                 days=45, exclude=ex, limit=limit * 2, min_hc=20, max_hc=250,
+        for c in jobs_candidates("16", "16-reporting", ["reporting analyst", "business intelligence analyst", "data reporting analyst", "BI analyst", "reporting specialist",
+                                  "KPI analyst", "financial reporting analyst", "data analyst reporting dashboard"],
+                                 days=60, exclude=ex, limit=limit * 2, min_hc=20, max_hc=250,
                                  need=r"report|dashboard|kpi|analy", need_title=r"report|\bBI\b|business intelligence|data analyst", industry_ok=r"health|hospital|bank|credit|financ|construct|manufactur|transport|logistic|non-?profit|retail|wholesale|real estate|food|energy|utilit"):
             k = kpi_line(c.get("industry"))
             if k:
