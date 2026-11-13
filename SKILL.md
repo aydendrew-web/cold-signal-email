@@ -231,7 +231,7 @@ repo and tells the run to follow this section. Change behaviour here or in the c
 3. Section 2a: one agent per active service, in parallel. Lead target 10 each.
 4. Merge, drop duplicates, drop leads without a "valid" or "accept_all" verdict, render and check every email (`render_emails.render`). Keep at most
    `remaining`, at least one per service that found one, hot leads first.
-4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run four shards in parallel:
+4a. **Tier C fill (Ayden approved 2026-11-12).** If tier A leads fall short of `remaining`, run eight shards in parallel:
    `python finder.py 11 --tier-c --shard K --shards 4 --target M --exclude /tmp/exclude.json` for K = 0..3, with M = ceil(N / 4) and
    N = remaining minus leads so far (Ayden, 2026-11-13: volume first, so Tier C may fill the whole shortfall to learn what converts). These are
    fit-only leads (right trade, real site, 20+ reviews at 4.0+, verified owner email) with no signal. The email opens with one
@@ -239,12 +239,12 @@ repo and tells the run to follow this section. Change behaviour here or in the c
    claimed signal. They use template `11-intro` and carry `tier=C`.
    Never claim a signal a Tier C lead does not have.
 5. DRY_RUN: stop here. Write the emails to the log and add nothing to Instantly.
-   LIVE: add leads to the template's campaign (`instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
+   LIVE: add leads to the template's campaign (find it with `instantly.ensure_campaign(template)`, which creates the 11-intro campaign the first time; `instantly.add_leads([instantly.lead_payload(l, today) ...])`, which sets custom_variables = the email fields plus analysis tags: svc, template, signal, city, contactTitle, verdict, emailSource, runDate, leadCostUsd), activate any campaign
    that received leads, only for templates in `services.approved_templates()`. Log leads for unapproved templates instead. Never retry a send.
 6. Check that each campaign's email text still matches `services.build()` (`python sync_campaigns.py --check`) and alert on drift.
 7. Write the log file to Drive. End it with a fenced ```json block named FUNNEL: one `finder.funnel_row(service, result, today)` per service (the weekly analysis reads it). Include: mode, cap, spend per service, leads per tier (A and C), every lead, every rendered email, dropped leads and why, problems.
 
-**Alerts** (Gmail to the alert address given in the routine prompt, subject starting "[Signal cold email]"): setup failure; run spend over $3; bounce rate above 5%
+**Alerts** (Gmail to the alert address given in the routine prompt, subject starting "[Signal cold email]"): setup failure; run spend over $10 (120 leads cost about $8); bounce rate above 5%
 in 24 hours (also pause every "SCE |" campaign); any Instantly error; fewer than 3 leads in total; campaign drift.
 
 **Hard rules.** Never put a key in a log, file or email. Never email a prospect directly: only add leads to Instantly campaigns. Never

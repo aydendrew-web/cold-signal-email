@@ -47,7 +47,7 @@ Roll back: `git tag -f stable <older commit> && git push -f origin stable`.
 - New leads: turn the routine OFF. Sending: pause the SCE campaigns in Instantly. Replies: set campaigns to Off in Graphed.
 
 ## Protections
-- Daily cap 120 leads (needs enough warm inboxes: 30 sends per inbox per day (Ayden, 2026-11-13), so 3 inboxes carry at most 90; 120 needs a 4th inbox). The routine alerts and stops itself if a run spends over $3 (raise this with the cap). Treg calls capped at $0.05 each. The routine alerts and stops itself if a run spends over $3,
+- Daily cap 120 leads (needs enough warm inboxes: 30 sends per inbox per day (Ayden, 2026-11-13), so 3 inboxes carry at most 90; 120 needs a 4th inbox). The routine alerts and stops itself if a run spends over $10 (about $0.07 a lead, so 120 leads is about $8). Treg calls capped at $0.05 each. The routine also stops itself if
   bounces pass 5%, or a setup check fails. Only approved templates are added in LIVE mode (`services.approved_templates()`).
 - Treg auto top-up is on ($20 under $5, up to $2,000 a month): lower it before running unattended.
 - Instantly plan had about 990 lead uploads left on 2026-11-10.
