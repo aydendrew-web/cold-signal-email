@@ -17,12 +17,14 @@ ap.add_argument("--target", type=int, default=4)
 ap.add_argument("--max-minutes", type=float, default=15)
 ap.add_argument("--cap", type=int, default=0, help="total lead goal; the shortfall after tier A is filled with Tier C shards")
 ap.add_argument("--tc-shards", type=int, default=8)
+ap.add_argument("--tc-wave", type=int, default=4)
+ap.add_argument("--skip-a", action="store_true", help="testing: skip tier A and go straight to Tier C")
 a = ap.parse_args()
 os.makedirs(a.out, exist_ok=True)
 ids = [k for k, v in services.SERVICES.items() if v.get("active")]
 # slowest services first so they overlap with fast ones
 order = sorted(ids, key=lambda k: k not in ("13", "05", "11", "01"))
-queue = list(order)
+queue = [] if a.skip_a else list(order)
 running = {}
 while queue or running:
     while queue and len(running) < a.wave:
@@ -50,12 +52,19 @@ if a.cap:
     if short > 0:
         m = -(-short // a.tc_shards)
         print(f"tier A found {got}, shortfall {short}: running {a.tc_shards} Tier C shards of {m}")
-        procs = []
-        for k in range(a.tc_shards):
-            log = open(f"{a.out}/log_tc_{k}.txt", "w")
-            procs.append(subprocess.Popen([sys.executable, os.path.join(here, "finder.py"), "11", "--tier-c", "--shard", str(k), "--shards", str(a.tc_shards),
-                                           "--target", str(m), "--out", f"{a.out}/svc_tc_{k}.json", "--exclude", a.exclude,
-                                           "--max-minutes", str(a.max_minutes)], stdout=log, stderr=subprocess.STDOUT))
-        for p in procs:
-            p.wait()
+        pending = list(range(a.tc_shards))
+        procs = {}
+        while pending or procs:
+            while pending and len(procs) < a.tc_wave:
+                k = pending.pop(0)
+                log = open(f"{a.out}/log_tc_{k}.txt", "w")
+                procs[k] = subprocess.Popen([sys.executable, os.path.join(here, "finder.py"), "11", "--tier-c", "--shard", str(k), "--shards", str(a.tc_shards),
+                                             "--target", str(m), "--out", f"{a.out}/svc_tc_{k}.json", "--exclude", a.exclude,
+                                             "--max-minutes", str(a.max_minutes)], stdout=log, stderr=subprocess.STDOUT)
+            for k, p in list(procs.items()):
+                try:
+                    p.wait(timeout=2)
+                    del procs[k]
+                except subprocess.TimeoutExpired:
+                    pass
         print("tier C finished")

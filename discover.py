@@ -402,7 +402,7 @@ def personal_opener(domain, company, city=None):
 def fit_candidates(service, template, queries, exclude=(), limit=60, max_places=400, min_reviews=20, min_rating=4.0, workers=10):
     """Tier C: right trade, real site, decent reputation, not a chain. No signal; the opener is a stated public fact."""
     places, seen = [], set()
-    for rows, q in zip(pmap(leads.maps, queries, workers=8), queries):
+    for rows, q in zip(pmap(leads.maps, queries, workers=4), queries):
         for p in rows:
             dom = leads.domain_of(p.get("website"))
             if (not dom or dom in exclude or dom in seen or leads.CHAINS.search(p.get("name", "")) or BIG.search(p.get("name", ""))
@@ -425,7 +425,12 @@ def fit_candidates(service, template, queries, exclude=(), limit=60, max_places=
                     signal_plain="No signal; fit only. Opener from own website: " + op, evidence_urls=[f"https://{dom}/"],
                     fields={"opener": op})
 
-    return [c for c in pmap(check, places, workers=workers) if c][:limit]
+    found = []
+    for i in range(0, len(places), 24):          # check in chunks and stop once there are enough candidates (discovery was the slow part)
+        found += [c for c in pmap(check, places[i:i + 24], workers=workers) if c]
+        if len(found) >= limit:
+            break
+    return found[:limit]
 
 
 TIER_C_TRADES = ("home builder", "remodeling contractor", "roofing contractor", "landscaping company", "HVAC company",

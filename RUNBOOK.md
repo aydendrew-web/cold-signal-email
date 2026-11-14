@@ -31,10 +31,12 @@ Roll back: `git tag -f stable <older commit> && git push -f origin stable`.
 | Reply agent (checks Instantly every 10 min) | Graphed cloud, project signal-reply-agent | Graphed app, /outbound |
 | Senders | hector@, jared@, ayden@apph2iautomation.com | |
 
-## Current state
-- Routine: DISABLED, prompt line 1 says DRY_RUN (finds leads, writes emails to the log, adds nothing to Instantly).
-- Graphed reply agent: running; all campaigns in Draft (replies saved, nothing sent).
-- Campaigns: drafts with no leads.
+## Current state (2026-11-13)
+- Routine: ENABLED, prompt line 1 says LIVE, runs 9am Pacific (cron `0 17 * * *`). It ran LIVE on 2026-11-13 and added 4 leads (old code, cap 45).
+- Since 2026-11-13: cap 120, Tier C fill (11-intro, creates its own Instantly campaign), catch-all emails accepted and tagged, service 10 discovery
+  (its wording is still unapproved, so those leads are logged and not sent), 30 sends per inbox (3 inboxes = 90, so 120 needs a 4th).
+- Run the finders in the background (`run_finders.py` takes up to about an hour in waves): a foreground tool call times out at 10 minutes.
+- Not done: the Graphed reply agent has no playbook registered for the 11-intro campaign yet (`graphed exec -- npx tsx scripts/setup-campaigns.ts`).
 
 ## Go live (in order)
 1. Run the routine once (Run now) and read the day's file in "daily logs". Check the leads and emails.

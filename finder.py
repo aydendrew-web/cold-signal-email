@@ -21,7 +21,7 @@ def run(service, target=4, exclude=(), contact_cap=0.60, discover_limit=15, dead
     t0 = time.time()
     s0 = tr.spend(service)
     try:
-        cands = discover.discover_tier_c(service, exclude=exclude, limit=max(discover_limit, 60), shard=shard, shards=shards) if tier_c else discover.discover(service, exclude=exclude, limit=discover_limit)
+        cands = discover.discover_tier_c(service, exclude=exclude, limit=max(target * 4, 12), shard=shard, shards=shards) if tier_c else discover.discover(service, exclude=exclude, limit=discover_limit)
     except Exception as e:  # a broken source must not kill the run
         return {"leads": [], "dropped": [{"reason": "discovery error " + repr(e)[:120]}], "spend_usd": tr.spend(service) - s0}
     s_disc = tr.spend(service) - s0
@@ -107,14 +107,16 @@ if __name__ == "__main__":
             pass
     import threading
     partial, box = [], {}
+    spend0 = tr.spend(a.service)
     t_end = time.time() + a.max_minutes * 60
     th = threading.Thread(target=lambda: box.update(res=run(a.service, a.target, ex, a.contact_cap, deadline=t_end - 120, partial=partial, tier_c=a.tier_c, shard=a.shard, shards=a.shards)), daemon=True)
     th.start()
-    th.join(a.max_minutes * 60)
+    while th.is_alive() and time.time() < t_end:   # wall-clock watchdog (join(timeout) uses a clock that pauses while the laptop sleeps)
+        th.join(5)
     if "res" in box:
         res = box["res"]
     else:  # hard time limit: keep whatever was found, never exit with no output
-        res = {"leads": list(partial), "dropped": [{"reason": f"hard time limit {a.max_minutes} min"}], "spend_usd": round(tr.spend(a.service), 4),
+        res = {"leads": list(partial), "dropped": [{"reason": f"hard time limit {a.max_minutes} min"}], "spend_usd": round(tr.spend(a.service) - spend0, 4),
                "candidates": None}
     if a.out:
         json.dump(res["leads"], open(a.out, "w"), indent=1)
