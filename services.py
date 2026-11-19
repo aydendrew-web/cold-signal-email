@@ -117,6 +117,13 @@ TEMPLATES = {
              "already talked to three other buyers.\n\n"
              "I built a distressed-seller finder agent that finds and contacts off-market owners in {{area}} for you, and it saves investors tens of "
              "thousands of dollars in ad spend or your money back. " + ASK),
+    # LinkedIn-engager variant of 13 (leads from the linkedin-engagement skill): the opener names the post they engaged with
+    # instead of an ad signal. Wording approved by Ayden 2026-11-18 (8 samples shown).
+    "13-linkedin": dict(service="13", fields=["opener"],
+        subject="off-market sellers",
+        body="Hi {{firstName}},\n\n{{opener}} Paid seller leads get expensive, and most of them have already talked to three other buyers.\n\n"
+             "I built a distressed-seller finder agent that finds and contacts off-market owners in your market for you, and it saves investors tens of "
+             "thousands of dollars in ad spend or your money back. " + ASK),
     "16-reporting": dict(service="16", fields=["role", "a_an", "kpiLine"],
         subject="{{role}} at {{companyName}}",
         body="Hi {{firstName}},\n\nSaw {{companyName}} is hiring {{a_an}} {{role}}. A lot of that job is rebuilding the same weekly report by hand, so I "
