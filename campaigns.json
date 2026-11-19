@@ -82,5 +82,11 @@
   "name": "SCE | 16-reporting | Reporting-hiring (Monday numbers)",
   "playbook": "playbooks/16-reporting.md",
   "mode": "draft"
+ },
+ "f43422cf-5b36-43a9-9960-64b1968644f8": {
+  "template": "13-linkedin",
+  "name": "SCE | 13-linkedin | Distressed-seller finder agent",
+  "playbook": "playbooks/13-seller-leads.md",
+  "mode": "draft"
  }
 }
