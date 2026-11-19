@@ -87,6 +87,6 @@
   "template": "13-linkedin",
   "name": "SCE | 13-linkedin | Distressed-seller finder agent",
   "playbook": "playbooks/13-linkedin.md",
-  "mode": "draft"
+  "mode": "send"
  }
 }
